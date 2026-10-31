@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Wallpep</string>
+    <string name="wallpaper_description">A quiet clock and date over your own photo.</string>
+    <string name="choose_photo">Choose a photo</string>
+    <string name="remove_photo">Remove photo</string>
+    <string name="save_settings">Save changes</string>
+    <string name="apply_wallpaper">Open wallpaper chooser</string>
+</resources>
