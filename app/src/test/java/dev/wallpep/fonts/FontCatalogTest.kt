@@ -80,10 +80,11 @@ class FontCatalogTest {
         }
     }
 
+    /** Unit tests run with the module (app/) as the working directory; fall back to the repository root. */
     private fun assetsRoot(): File {
         val start = File("").absoluteFile
         return generateSequence(start) { it.parentFile }
-            .map { File(it, "src/main/assets") }
+            .flatMap { listOf(File(it, "src/main/assets"), File(it, "app/src/main/assets")) }
             .firstOrNull { it.isDirectory }
             ?: error("Could not locate src/main/assets from $start")
     }

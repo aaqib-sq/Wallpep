@@ -75,7 +75,10 @@ internal object FontPickerDialog {
         val adapter = FamilyAdapter(context, selectedId)
         adapter.submit(extras + families)
         list.adapter = adapter
-        content.addView(list, LinearLayout.LayoutParams(-1, context.dp(340)).apply { topMargin = context.dp(4) })
+        // Keep the dialog inside short screens and above an open keyboard.
+        val listHeight = (context.resources.displayMetrics.heightPixels * 0.42f).toInt()
+            .coerceIn(context.dp(200), context.dp(360))
+        content.addView(list, LinearLayout.LayoutParams(-1, listHeight).apply { topMargin = context.dp(4) })
 
         val empty = context.uiText("No bundled family matches that search.", 12f, Gold.MUTED).apply {
             gravity = Gravity.CENTER
