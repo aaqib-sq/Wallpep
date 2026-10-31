@@ -28,7 +28,12 @@ data class WallpaperSettings(
     val positionX: Int = 50,
     val positionY: Int = 32,
     val backgroundName: String? = null,
+    // Additive schema-1 preferences: missing keys from Phase 1 default behind the cutout.
+    val hourOverForeground: Boolean = false,
+    val minuteOverForeground: Boolean = false,
+    val dateOverForeground: Boolean = false,
 ) {
+    val clockOverForeground: Boolean get() = hourOverForeground && minuteOverForeground
     fun sanitized(): WallpaperSettings = copy(
         textColor = textColor.takeIf { it in TextColors.all } ?: TextColors.WHITE,
         clockSizeSp = clockSizeSp.coerceIn(36, 120),

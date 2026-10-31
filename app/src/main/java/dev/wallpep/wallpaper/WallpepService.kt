@@ -21,6 +21,8 @@ import android.util.Log
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import android.view.View
+import dev.wallpep.cutout.CutoutCoordinator
+import dev.wallpep.cutout.CutoutState
 import dev.wallpep.model.WallpaperSettings
 import dev.wallpep.render.WallpaperScene
 import dev.wallpep.storage.BackgroundStore
@@ -66,6 +68,7 @@ class WallpepService : WallpaperService() {
         private var generation = 0L
         private var requestedImage = false
         private var lastImageName: String? = null
+        private var loadedReadyCutout = false
 
         private val fallbackColors = WallpaperColors(Color.valueOf(0xff263f34.toInt()), null, null)
         @Volatile private var cachedColors: WallpaperColors = fallbackColors
@@ -262,7 +265,13 @@ class WallpepService : WallpaperService() {
                         if (!requestedImage || lastImageName != settings.backgroundName) {
                             requestedImage = true
                             lastImageName = settings.backgroundName
+                            loadedReadyCutout = settings.backgroundName?.let {
+                                CutoutCoordinator.states.value[it] == CutoutState.READY
+                            } == true
                             loadBackground(settings.backgroundName)
+                            // Also migrates a Phase 1 photo when the visible engine starts, even
+                            // if the settings activity has not been opened since the update.
+                            CutoutCoordinator.ensure(applicationContext, settings.backgroundName)
                         }
                         requestFrame()
                     }
@@ -271,6 +280,16 @@ class WallpepService : WallpaperService() {
                 } catch (_: Exception) {
                     // Storage failures leave the safe fallback; never log image paths or data.
                     Log.w(TAG, "Could not read wallpaper settings")
+                }
+            }
+            scope.launch {
+                CutoutCoordinator.states.collect { states ->
+                    val name = lastImageName
+                    if (running && gate.canRender && requestedImage && name != null &&
+                        !loadedReadyCutout && states[name] == CutoutState.READY) {
+                        loadedReadyCutout = true
+                        loadBackground(name)
+                    }
                 }
             }
             requestFrame()
@@ -324,7 +343,7 @@ class WallpepService : WallpaperService() {
             generation++
             val ticket = generation
             if (name == null) {
-                scene.setBackgroundBitmap(null)
+                scene.setImages(null, null)
                 updateColors(fallbackColors)
                 requestFrame()
                 return
@@ -332,27 +351,33 @@ class WallpepService : WallpaperService() {
             val scope = activeScope ?: return
             imageJob = scope.launch(Dispatchers.IO) {
                 var bitmap: Bitmap? = null
+                var foreground: Bitmap? = null
                 var transferred = false
                 try {
                     val decoded = backgrounds.decode(name, 2048)
                     bitmap = decoded
                     if (!isActive) return@launch
+                    if (decoded != null) foreground = backgrounds.decodeCutout(name, 2048)
+                    if (!isActive) return@launch
                     val colors = if (decoded != null) {
                         try { WallpaperColors.fromBitmap(decoded) ?: fallbackColors }
                         catch (_: RuntimeException) { fallbackColors }
                     } else fallbackColors
-                    // NonCancellable is used only to dispose or transfer the bitmap on main.
+                    // NonCancellable is used only to dispose or transfer the bitmaps on main.
                     // The ticket and gate prevent a late decode from reviving a hidden engine.
                     withContext(Dispatchers.Main.immediate + NonCancellable) {
                         if (ticket == generation && running && gate.canRender) {
-                            scene.setBackgroundBitmap(decoded)
+                            scene.setImages(decoded, foreground)
                             transferred = true
                             updateColors(colors)
                             requestFrame()
                         }
                     }
                 } finally {
-                    if (!transferred) bitmap?.recycle()
+                    if (!transferred) {
+                        bitmap?.recycle()
+                        foreground?.recycle()
+                    }
                 }
             }
         }

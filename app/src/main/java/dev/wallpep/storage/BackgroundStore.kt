@@ -23,7 +23,15 @@ class BackgroundStore(context: Context) {
     private fun imageFile(name: String?): File? =
         name?.takeIf(::isSafeBackgroundName)?.let { File(directory, it) }
 
+    private fun cutoutFile(name: String?): File? =
+        name?.let(::cutoutFileName)?.let { File(directory, it) }
+
+    private fun failureFile(name: String?): File? =
+        name?.let(::cutoutFailureFileName)?.let { File(directory, it) }
+
     fun exists(name: String?): Boolean = imageFile(name)?.isFile == true
+    fun hasCutout(name: String?): Boolean = cutoutFile(name)?.isFile == true
+    fun hasCutoutFailure(name: String?): Boolean = failureFile(name)?.isFile == true
 
     /** Copy now while the temporary picker grant exists; validate before exposing the name. */
     suspend fun importPhoto(uri: Uri): String = withContext(Dispatchers.IO) {
@@ -57,9 +65,13 @@ class BackgroundStore(context: Context) {
         }
     }
 
-    /** Caller runs this off the main thread. Decoded pixels are capped per engine. */
-    fun decode(name: String?, maxDimension: Int): Bitmap? = imageFile(name)?.let { file ->
-        if (!file.isFile) null else try {
+    /** Caller runs these off the main thread. Decoded pixels are capped per engine. */
+    fun decode(name: String?, maxDimension: Int): Bitmap? = decodeSafely(imageFile(name), maxDimension)
+    fun decodeCutout(name: String?, maxDimension: Int): Bitmap? = decodeSafely(cutoutFile(name), maxDimension)
+
+    private fun decodeSafely(file: File?, maxDimension: Int): Bitmap? {
+        if (file?.isFile != true) return null
+        return try {
             decodeFile(file, maxDimension.coerceIn(64, 2048))
         } catch (_: IOException) {
             null
@@ -70,23 +82,58 @@ class BackgroundStore(context: Context) {
         }
     }
 
-    fun delete(name: String?) {
-        imageFile(name)?.delete()
+    /** Atomic sidecar publication. A deleted/replaced photo must never regain an orphan cutout. */
+    fun writeCutout(name: String, bitmap: Bitmap): Boolean = synchronized(fileLock) {
+        val image = imageFile(name) ?: return@synchronized false
+        val destination = cutoutFile(name) ?: return@synchronized false
+        if (!image.isFile) return@synchronized false
+        val temp = File(directory, ".${destination.name}.tmp")
+        try {
+            temp.outputStream().buffered().use { output ->
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                    throw IOException("Could not encode foreground")
+                }
+            }
+            if (!temp.renameTo(destination)) throw IOException("Could not store foreground")
+            failureFile(name)?.delete()
+            true
+        } finally {
+            temp.delete()
+        }
     }
 
-    /** Remove abandoned drafts and old committed copies, but never touch arbitrary files. */
+    /** Remember a completed failure so a broken model/photo is not retried on every redraw/start. */
+    fun markCutoutFailure(name: String): Unit = synchronized(fileLock) {
+        if (imageFile(name)?.isFile == true && cutoutFile(name)?.isFile != true) {
+            failureFile(name)?.writeText("")
+        }
+    }
+
+    fun delete(name: String?) = synchronized(fileLock) {
+        imageFile(name)?.delete()
+        cutoutFile(name)?.delete()
+        failureFile(name)?.delete()
+    }
+
+    /** Remove abandoned drafts and their sidecars, but never touch arbitrary files. */
     suspend fun cleanupExcept(keep: Set<String>) = withContext(Dispatchers.IO) {
-        directory.listFiles()?.forEach { file ->
-            val name = file.name
-            if ((isSafeBackgroundName(name) && name !in keep) ||
-                (name.startsWith(".background-") && name.endsWith(".img.tmp"))) {
-                file.delete()
+        synchronized(fileLock) {
+            directory.listFiles()?.forEach { file ->
+                val name = file.name
+                val cutoutOwner = cutoutBackgroundName(name)
+                if ((isSafeBackgroundName(name) && name !in keep) ||
+                    (name.startsWith(".background-") && name.endsWith(".img.tmp")) ||
+                    (cutoutOwner != null && (name.startsWith(".") || cutoutOwner !in keep))) {
+                    file.delete()
+                }
             }
         }
     }
 
     companion object {
         private const val MAX_IMAGE_BYTES = 40L * 1024 * 1024
+        // Shared across activity/engine instances; cleanup cannot race sidecar publication.
+        private val fileLock = Any()
 
         private fun decodeFile(file: File, maxDimension: Int): Bitmap? {
             return ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->

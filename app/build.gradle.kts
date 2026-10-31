@@ -15,8 +15,8 @@ android {
         applicationId = "dev.wallpep"
         minSdk = 33
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0-phase1"
+        versionCode = 2
+        versionName = "1.0-phase2"
     }
 
     compileOptions {
@@ -31,6 +31,8 @@ android {
 }
 
 dependencies {
+    // Bundled, offline CPU/XNNPACK inference; no Tasks SDK or Play Services.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.10")
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("androidx.core:core-ktx:1.16.0")

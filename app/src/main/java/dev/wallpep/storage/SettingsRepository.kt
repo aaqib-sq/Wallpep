@@ -1,6 +1,7 @@
 package dev.wallpep.storage
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -32,6 +33,9 @@ class SettingsRepository(context: Context) {
         val x = intPreferencesKey("position_x")
         val y = intPreferencesKey("position_y")
         val background = stringPreferencesKey("background_file")
+        val hourOverForeground = booleanPreferencesKey("hour_over_foreground")
+        val minuteOverForeground = booleanPreferencesKey("minute_over_foreground")
+        val dateOverForeground = booleanPreferencesKey("date_over_foreground")
     }
 
     val snapshots: Flow<SettingsSnapshot> = store.data.map { prefs ->
@@ -51,6 +55,9 @@ class SettingsRepository(context: Context) {
                     positionX = prefs[Keys.x] ?: defaults.positionX,
                     positionY = prefs[Keys.y] ?: defaults.positionY,
                     backgroundName = prefs[Keys.background],
+                    hourOverForeground = prefs[Keys.hourOverForeground] ?: defaults.hourOverForeground,
+                    minuteOverForeground = prefs[Keys.minuteOverForeground] ?: defaults.minuteOverForeground,
+                    dateOverForeground = prefs[Keys.dateOverForeground] ?: defaults.dateOverForeground,
                 ).sanitized(),
                 schemaSupported = true,
             )
@@ -71,6 +78,9 @@ class SettingsRepository(context: Context) {
             prefs[Keys.clockSize] = clean.clockSizeSp
             prefs[Keys.x] = clean.positionX
             prefs[Keys.y] = clean.positionY
+            prefs[Keys.hourOverForeground] = clean.hourOverForeground
+            prefs[Keys.minuteOverForeground] = clean.minuteOverForeground
+            prefs[Keys.dateOverForeground] = clean.dateOverForeground
             if (clean.backgroundName == null) prefs.remove(Keys.background)
             else prefs[Keys.background] = clean.backgroundName
         }

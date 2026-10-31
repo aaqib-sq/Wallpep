@@ -29,6 +29,17 @@ class WallpaperSettingsTest {
         assertFalse(isSafeBackgroundName("background-3b70bf09-554e-42fb-80dc-45f67be67335.img/other"))
     }
 
+    @Test fun phaseOneDefaultsPutClockAndDateBehindACutout() {
+        val defaults = WallpaperSettings()
+        assertFalse(defaults.hourOverForeground)
+        assertFalse(defaults.minuteOverForeground)
+        assertFalse(defaults.dateOverForeground)
+        assertFalse(defaults.clockOverForeground)
+        assertFalse(defaults.copy(hourOverForeground = true).clockOverForeground)
+        assertTrue(defaults.copy(hourOverForeground = true, minuteOverForeground = true).clockOverForeground)
+        assertTrue(defaults.copy(dateOverForeground = true).dateOverForeground)
+    }
+
     @Test fun unknownEnumValuesUseDefaults() {
         assertEquals(TimeStyle.SYSTEM, storedEnum("FUTURE", TimeStyle.SYSTEM))
         assertEquals(TimeStyle.TWELVE_HOUR, storedEnum("twelve_hour", TimeStyle.SYSTEM))
