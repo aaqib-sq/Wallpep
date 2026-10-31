@@ -325,8 +325,8 @@ class MainActivity : ComponentActivity() {
     private fun readDraft(bundle: Bundle): WallpaperSettings = WallpaperSettings(
         timeStyle = storedEnum(bundle.getString("time"), active.timeStyle),
         dateStyle = storedEnum(bundle.getString("date"), active.dateStyle),
-        font = FontCatalog.sanitizeId(bundle.getString("font")),
-        dateFont = FontCatalog.sanitizeDateId(bundle.getString("dateFont")),
+        font = FontCatalog.sanitizeId(bundle.getString("font") ?: active.font),
+        dateFont = FontCatalog.sanitizeDateId(bundle.getString("dateFont") ?: active.dateFont),
         textColor = bundle.getInt("color", active.textColor),
         clockSizeSp = bundle.getInt("size", active.clockSizeSp),
         positionX = bundle.getInt("x", active.positionX),
