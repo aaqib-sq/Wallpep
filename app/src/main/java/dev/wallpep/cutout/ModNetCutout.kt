@@ -11,6 +11,7 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
+import android.system.Os
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -39,7 +40,11 @@ internal class ModNetCutout(context: Context) {
             input.put(2 * plane + i, normalizedChannel(color and 0xff))
         }
 
+        // Set the process opt-out before ORT is initialized, then explicitly disable its events.
+        // The pinned 1.22 Android/POSIX implementation is a no-op; newer versions require review.
+        Os.setenv("ORT_DISABLE_TELEMETRY", "1", true)
         val environment = OrtEnvironment.getEnvironment()
+        environment.setTelemetry(false)
         val model = app.assets.open(MODEL_ASSET).use { it.readBytes() }
         var options = options(preferXnnpack = true)
         try {

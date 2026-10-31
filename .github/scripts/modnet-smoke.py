@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """CPU smoke test only: synthetic input, no user photo or network at inference time."""
 import hashlib
+import os
 from pathlib import Path
 
+# Keep the CI host inference privacy posture explicit before the runtime is imported.
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"
 import numpy as np
 import onnxruntime as ort
+
+ort.disable_telemetry_events()
 
 MODEL = Path("app/src/main/assets/models/modnet_photographic_portrait_matting.onnx")
 EXPECTED = "07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9"
