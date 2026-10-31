@@ -30,6 +30,8 @@ jobs:
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
       - name: Assemble debug
         run: .github/scripts/gradle-ci.sh :app:assembleDebug
+      - name: Verify bundled model and privacy guardrails
+        run: .github/scripts/privacy-ci.sh
       - name: Upload commit-specific APK
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
@@ -55,6 +57,11 @@ jobs:
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
       - name: Run unit tests
         run: .github/scripts/gradle-ci.sh :app:testDebugUnitTest
+      - name: Smoke-test bundled MODNet on synthetic input
+        run: |
+          python3 -m venv "$RUNNER_TEMP/modnet-test"
+          "$RUNNER_TEMP/modnet-test/bin/pip" install --disable-pip-version-check 'numpy==2.2.6' 'onnxruntime==1.22.0'
+          "$RUNNER_TEMP/modnet-test/bin/python" .github/scripts/modnet-smoke.py
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

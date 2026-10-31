@@ -3,6 +3,7 @@ package dev.wallpep
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.WallpaperManager
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
@@ -24,12 +25,15 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.Spinner
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
+import dev.wallpep.cutout.CutoutCoordinator
+import dev.wallpep.cutout.CutoutState
 import dev.wallpep.model.DateStyle
 import dev.wallpep.model.FontChoice
 import dev.wallpep.model.TextColors
@@ -48,6 +52,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
@@ -61,6 +66,7 @@ class MainActivity : ComponentActivity() {
     private var busy = false
     private var syncing = false
     private var previewGeneration = 0L
+    private var previewVisible = false
     private var previewJob: Job? = null
     private val inputs = mutableListOf<View>()
     private val colorButtons = mutableListOf<TextView>()
@@ -80,6 +86,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var sizeValue: TextView
     private lateinit var xValue: TextView
     private lateinit var yValue: TextView
+    private lateinit var clockForegroundSwitch: Switch
+    private lateinit var hourForegroundSwitch: Switch
+    private lateinit var minuteForegroundSwitch: Switch
+    private lateinit var dateForegroundSwitch: Switch
 
     private val previewTick = object : Runnable {
         override fun run() {
@@ -103,6 +113,20 @@ class MainActivity : ComponentActivity() {
         setContentView(createScreen())
         setEnabledState()
         lifecycleScope.launch {
+            var observedName: String? = null
+            var observedState: CutoutState? = null
+            CutoutCoordinator.states.collect { states ->
+                if (!initialized) return@collect
+                val name = draft.backgroundName
+                val state = name?.let { states[it] }
+                val changed = name != observedName || state != observedState
+                observedName = name
+                observedState = state
+                syncControls()
+                if (changed && state == CutoutState.READY && previewVisible) refreshPreviewImage()
+            }
+        }
+        lifecycleScope.launch {
             try {
                 val snapshot = repository.snapshots.first()
                 if (!snapshot.schemaSupported) {
@@ -119,6 +143,11 @@ class MainActivity : ComponentActivity() {
                 // can race this cleanup and lose a freshly copied draft.
                 backgrounds.cleanupExcept(setOfNotNull(active.backgroundName, draft.backgroundName))
                 initialized = true
+                // Requests coalesce with any visible wallpaper engine and run off the UI thread.
+                CutoutCoordinator.ensure(applicationContext, active.backgroundName)
+                if (draft.backgroundName != active.backgroundName) {
+                    CutoutCoordinator.ensure(applicationContext, draft.backgroundName)
+                }
                 syncControls()
                 refreshPreviewImage()
                 setEnabledState()
@@ -135,6 +164,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        previewVisible = true
         scene.invalidate()
         main.removeCallbacks(previewTick)
         main.postDelayed(previewTick, millisUntilNextMinute(System.currentTimeMillis()))
@@ -142,6 +172,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        previewVisible = false
         main.removeCallbacks(previewTick)
         super.onPause()
     }
@@ -218,7 +249,9 @@ class MainActivity : ComponentActivity() {
         page.addView(previewCard, lp(top = 24))
 
         val photoCard = section("01", "Background", "A photo stays on this device, in app-private storage.")
-        photoStatus = text("Using the built-in backdrop", 13f, INK)
+        photoStatus = text("Using the built-in backdrop", 13f, INK).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
         photoCard.addView(photoStatus, lp(top = 14))
         val photoRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val pickButton = button(getString(R.string.choose_photo), false) {
@@ -275,6 +308,22 @@ class MainActivity : ComponentActivity() {
         yValue = y.second
         page.addView(positionCard, lp(top = 14))
 
+        val depthCard = section("04", "Depth", "The subject appears in front by default. Without a cutout, the clock stays on top.")
+        depthCard.addView(text("The whole-clock switch sets both parts; hour and minute can also be set separately. The separator and AM/PM follow the minute.", 12f, MUTED), lp(top = 10))
+        clockForegroundSwitch = addSwitch(depthCard, "Show clock over foreground") { checked ->
+            changeDraft(draft.copy(hourOverForeground = checked, minuteOverForeground = checked))
+        }
+        hourForegroundSwitch = addSwitch(depthCard, "Hour over foreground") { checked ->
+            changeDraft(draft.copy(hourOverForeground = checked))
+        }
+        minuteForegroundSwitch = addSwitch(depthCard, "Minute over foreground") { checked ->
+            changeDraft(draft.copy(minuteOverForeground = checked))
+        }
+        dateForegroundSwitch = addSwitch(depthCard, "Show date over foreground") { checked ->
+            changeDraft(draft.copy(dateOverForeground = checked))
+        }
+        page.addView(depthCard, lp(top = 14))
+
         page.addView(text("YOUR CHANGES", 10f, MUTED, Typeface.BOLD).apply { letterSpacing = 0.1f }, lp(top = 25))
         page.addView(text("Saving updates the active settings. Closing the chooser does not undo a save.", 13f, MUTED), lp(top = 8))
         saveButton = button(getString(R.string.save_settings), true) {
@@ -320,6 +369,22 @@ class MainActivity : ComponentActivity() {
         return spinner
     }
 
+    @SuppressLint("UseSwitchCompatOrMaterialCode")
+    private fun addSwitch(parent: LinearLayout, label: String, changed: (Boolean) -> Unit): Switch {
+        val control = Switch(this).apply {
+            text = label
+            textSize = 13f
+            setTextColor(INK)
+            minHeight = dp(48)
+            setOnCheckedChangeListener { _, checked ->
+                if (initialized && !syncing && !busy) changed(checked)
+            }
+        }
+        inputs.add(control)
+        parent.addView(control, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+        return control
+    }
+
     private fun addSlider(parent: LinearLayout, label: String, max: Int, changed: (Int) -> Unit): Pair<SeekBar, TextView> {
         val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         row.addView(text(label, 12f, MUTED, Typeface.BOLD), LinearLayout.LayoutParams(0, -2, 1f))
@@ -360,10 +425,20 @@ class MainActivity : ComponentActivity() {
         sizeBar.progress = draft.clockSizeSp - 36
         xBar.progress = draft.positionX
         yBar.progress = draft.positionY
+        clockForegroundSwitch.isChecked = draft.clockOverForeground
+        hourForegroundSwitch.isChecked = draft.hourOverForeground
+        minuteForegroundSwitch.isChecked = draft.minuteOverForeground
+        dateForegroundSwitch.isChecked = draft.dateOverForeground
         sizeValue.text = "${draft.clockSizeSp} sp"
         xValue.text = "${draft.positionX}%"
         yValue.text = "${draft.positionY}%"
-        photoStatus.text = if (draft.backgroundName == null) "Using the built-in backdrop" else "Photo selected · center crop"
+        val cutoutState = draft.backgroundName?.let { CutoutCoordinator.states.value[it] }
+        photoStatus.text = when {
+            draft.backgroundName == null -> "Using the built-in backdrop"
+            cutoutState == CutoutState.PROCESSING -> "Creating depth cutout on this device…"
+            cutoutState == CutoutState.READY -> "Photo selected · depth ready"
+            else -> "Photo selected · center crop"
+        }
         status.text = if (draft == active) "SAVED" else "UNSAVED"
         colorButtons.forEachIndexed { index, view ->
             val selected = TextColors.all[index] == draft.textColor
@@ -392,6 +467,7 @@ class MainActivity : ComponentActivity() {
                 withContext(Dispatchers.IO) { backgrounds.delete(previous) }
             }
             draft = draft.copy(backgroundName = name)
+            CutoutCoordinator.ensure(applicationContext, name)
             syncControls()
             refreshPreviewImage()
             toast("Photo copied privately. Save to use it.")
@@ -475,23 +551,29 @@ class MainActivity : ComponentActivity() {
         previewGeneration++
         val ticket = previewGeneration
         previewJob?.cancel()
+        if (!previewVisible) return
         val name = draft.backgroundName
         if (name == null) {
-            scene.setBackgroundBitmap(null)
+            scene.setImages(null, null)
             return
         }
         previewJob = lifecycleScope.launch(Dispatchers.IO) {
             val bitmap = backgrounds.decode(name, 900)
+            var foreground: android.graphics.Bitmap? = null
             var transferred = false
             try {
+                if (bitmap != null) foreground = backgrounds.decodeCutout(name, 900)
                 withContext(Dispatchers.Main.immediate + NonCancellable) {
-                    if (ticket == previewGeneration && !isFinishing && !isDestroyed) {
-                        scene.setBackgroundBitmap(bitmap)
+                    if (ticket == previewGeneration && previewVisible && !isFinishing && !isDestroyed) {
+                        scene.setImages(bitmap, foreground)
                         transferred = true
                     }
                 }
             } finally {
-                if (!transferred) bitmap?.recycle()
+                if (!transferred) {
+                    bitmap?.recycle()
+                    foreground?.recycle()
+                }
             }
         }
     }
@@ -500,6 +582,9 @@ class MainActivity : ComponentActivity() {
         putString("time", s.timeStyle.name); putString("date", s.dateStyle.name)
         putString("font", s.font.name); putInt("color", s.textColor); putInt("size", s.clockSizeSp)
         putInt("x", s.positionX); putInt("y", s.positionY); putString("background", s.backgroundName)
+        putBoolean("hourForeground", s.hourOverForeground)
+        putBoolean("minuteForeground", s.minuteOverForeground)
+        putBoolean("dateForeground", s.dateOverForeground)
     }
 
     private fun readDraft(bundle: Bundle): WallpaperSettings = WallpaperSettings(
@@ -511,6 +596,9 @@ class MainActivity : ComponentActivity() {
         positionX = bundle.getInt("x", active.positionX),
         positionY = bundle.getInt("y", active.positionY),
         backgroundName = bundle.getString("background"),
+        hourOverForeground = bundle.getBoolean("hourForeground", active.hourOverForeground),
+        minuteOverForeground = bundle.getBoolean("minuteForeground", active.minuteOverForeground),
+        dateOverForeground = bundle.getBoolean("dateForeground", active.dateOverForeground),
     ).sanitized()
 
     private fun button(label: String, primary: Boolean, click: () -> Unit): Button = Button(this).apply {
