@@ -40,7 +40,7 @@ manager="$sdk/cmdline-tools/latest/bin/sdkmanager"
 run_step 'Accept Android SDK licenses' bash -c \
   'printf "y\n%.0s" {1..100} | "$1" --sdk_root="$2" --licenses' _ "$manager" "$sdk"
 run_step 'Install pinned platform and build tools' "$manager" --sdk_root="$sdk" \
-  --verbose 'platforms;android-37' 'build-tools;37.0.0'
+  --verbose 'platforms;android-37.0' 'build-tools;37.0.0'
 {
   echo "ANDROID_HOME=$sdk"
   echo "ANDROID_SDK_ROOT=$sdk"

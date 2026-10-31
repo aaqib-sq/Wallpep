@@ -6,7 +6,7 @@ Phase 1 core implementation is ready for CI and human/device verification. This 
 
 ## Decisions
 
-- minSdk 33; compile/target SDK 37 (Android 17 stable). Exact toolchain pins and build commands are in the README.
+- minSdk 33; compile SDK 37.0 / target SDK 37 (Android 17 stable). Exact toolchain pins and build commands are in the README.
 - Independent View + SurfaceHolder/Choreographer live-wallpaper engine. Minute/event-driven rendering, visibility/screen/keyguard guards, engine-local bitmap release, and cached color notifications; no effects or continuous frame loop.
 - Local versioned Preferences DataStore. Selected image is copied into no-backup private storage; the original is unchanged. Photo picker has no broad permission; center crop is automatic.
 - Two Google Fonts OFL families, Outfit and DM Sans, are bundled with license texts and provenance; system sans is also available. Default art is synthetic.

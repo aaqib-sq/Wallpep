@@ -9,7 +9,7 @@ A personal-use Android live wallpaper: a clock and date over a locally selected 
 | Component | Version |
 | --- | --- |
 | Minimum Android | API 33 (Android 13) |
-| Compile / target Android | API 37 (Android 17, stable) |
+| Compile / target Android | API 37.0 / 37 (Android 17, stable) |
 | Android SDK build tools | 37.0.0 |
 | Android SDK command-line tools in CI | 13114758 |
 | Android Gradle Plugin | 9.1.1 |
@@ -17,7 +17,7 @@ A personal-use Android live wallpaper: a clock and date over a locally selected 
 | Kotlin | 2.2.10 (AGP 9 built-in Kotlin, runtime explicitly pinned) |
 | CI Java | Eclipse Temurin 17.0.17+10 |
 
-Install the JDK, Android SDK command-line tools, platform `android-37` and build-tools `37.0.0`, accept the Android SDK licenses, and point `ANDROID_HOME` at the SDK. Android Studio Panda 3 (2025.3.3 Patch 1) or a newer compatible stable version can also import the project. Google's Maven repository and the Gradle distribution host must be reachable. Then, from the repository root:
+Install the JDK, Android SDK command-line tools, platform `android-37.0` and build-tools `37.0.0`, accept the Android SDK licenses, and point `ANDROID_HOME` at the SDK. Android Studio Panda 3 (2025.3.3 Patch 1) or a newer compatible stable version can also import the project. Google's Maven repository and the Gradle distribution host must be reachable. Then, from the repository root:
 
 ```sh
 ./gradlew :app:assembleDebug
