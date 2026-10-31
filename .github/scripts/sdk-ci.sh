@@ -9,10 +9,12 @@ log_file="$RUNNER_TEMP/wallpep-sdk.log"
 run_step() {
   local label="$1"
   shift
+  : > "$log_file"
   echo "--- $label ---" | tee -a "$log_file"
   "$@" 2>&1 | tee -a "$log_file"
   local result=${PIPESTATUS[0]}
   if (( result != 0 )); then
+    echo "::error title=Android SDK setup::$label exited with status $result"
     python3 - "$log_file" "$label" <<'PY'
 import sys
 from pathlib import Path
@@ -38,7 +40,7 @@ manager="$sdk/cmdline-tools/latest/bin/sdkmanager"
 run_step 'Accept Android SDK licenses' bash -c \
   'printf "y\n%.0s" {1..100} | "$1" --sdk_root="$2" --licenses' _ "$manager" "$sdk"
 run_step 'Install pinned platform and build tools' "$manager" --sdk_root="$sdk" \
-  'platforms;android-37' 'build-tools;37.0.0'
+  --verbose 'platforms;android-37' 'build-tools;37.0.0'
 {
   echo "ANDROID_HOME=$sdk"
   echo "ANDROID_SDK_ROOT=$sdk"
