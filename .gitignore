@@ -10,3 +10,7 @@ captures/
 *.aab
 *.jks
 *.keystore
+
+# Local Python bytecode from the font tooling
+__pycache__/
+*.pyc

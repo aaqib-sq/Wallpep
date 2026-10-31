@@ -6,8 +6,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dev.wallpep.fonts.FontCatalog
 import dev.wallpep.model.DateStyle
-import dev.wallpep.model.FontChoice
 import dev.wallpep.model.SETTINGS_SCHEMA_VERSION
 import dev.wallpep.model.TimeStyle
 import dev.wallpep.model.WallpaperSettings
@@ -28,6 +28,7 @@ class SettingsRepository(context: Context) {
         val timeStyle = stringPreferencesKey("time_style")
         val dateStyle = stringPreferencesKey("date_style")
         val font = stringPreferencesKey("font")
+        val dateFont = stringPreferencesKey("date_font")
         val textColor = intPreferencesKey("text_color")
         val clockSize = intPreferencesKey("clock_size_sp")
         val x = intPreferencesKey("position_x")
@@ -49,7 +50,9 @@ class SettingsRepository(context: Context) {
                 WallpaperSettings(
                     timeStyle = storedEnum(prefs[Keys.timeStyle], defaults.timeStyle),
                     dateStyle = storedEnum(prefs[Keys.dateStyle], defaults.dateStyle),
-                    font = storedEnum(prefs[Keys.font], defaults.font),
+                    // Sanitizing migrates the Phase 1/2 enum names (OUTFIT, DM_SANS, SYSTEM).
+                    font = FontCatalog.sanitizeId(prefs[Keys.font]),
+                    dateFont = FontCatalog.sanitizeDateId(prefs[Keys.dateFont]),
                     textColor = prefs[Keys.textColor] ?: defaults.textColor,
                     clockSizeSp = prefs[Keys.clockSize] ?: defaults.clockSizeSp,
                     positionX = prefs[Keys.x] ?: defaults.positionX,
@@ -73,7 +76,8 @@ class SettingsRepository(context: Context) {
             prefs[Keys.version] = SETTINGS_SCHEMA_VERSION
             prefs[Keys.timeStyle] = clean.timeStyle.name
             prefs[Keys.dateStyle] = clean.dateStyle.name
-            prefs[Keys.font] = clean.font.name
+            prefs[Keys.font] = clean.font
+            prefs[Keys.dateFont] = clean.dateFont
             prefs[Keys.textColor] = clean.textColor
             prefs[Keys.clockSize] = clean.clockSizeSp
             prefs[Keys.x] = clean.positionX

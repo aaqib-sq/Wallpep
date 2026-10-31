@@ -1,6 +1,6 @@
 # Wallpep
 
-A personal-use Android live wallpaper: a clock and date with an optional on-device portrait cutout for a depth-sandwich effect. There are no accounts, network services, ads, payments or locked features. The implementation uses Android's public wallpaper, View, SurfaceHolder and Choreographer APIs; it does not use DepthX code or assets. This app is intended for personal use only and will not be published as a product or store release. This GitHub repository and its CI debug artifacts are public; see the [license/status caveat](STATUS.md).
+A personal-use Android live wallpaper: a clock and date with an optional on-device portrait cutout for a depth-sandwich effect, edited in a black-and-gold studio screen. There are no accounts, network services, ads, payments or locked features. The implementation uses Android's public wallpaper, View, SurfaceHolder and Choreographer APIs; it does not use DepthX code or assets. This app is intended for personal use only and will not be published as a product or store release. This GitHub repository and its CI debug artifacts are public; see the [license/status caveat](STATUS.md).
 
 > **Device status:** No Samsung Galaxy F54 5G or other physical device has been tested in this environment. The checklist below is a plan, not a claim of device behavior. Android's chooser controls destination options; choose **Home screen only** when offered. See [the chooser limitation](#home-screen-destination).
 
@@ -34,8 +34,8 @@ No stable signing keystore is included or assumed. CI uses the Android SDK's gen
 ## Use
 
 1. Open Wallpep. Choose a system photo-picker image (or keep the synthetic built-in backdrop); the app privately copies the selected image while its temporary picker grant is available. The source photo is not modified. Supported images up to 40 MB are decoded with orientation respected and automatically **center-cropped** to fill the screen. If the system picker is unavailable, AndroidX's system document-picker fallback may be used; no broad media permission is requested. The screen shows a processing state while the bundled portrait model makes a cutout, and other edits remain available. Processing happens once per photo, not per frame.
-2. Adjust time format, date, typeface, text color, size and horizontal/vertical position. System time format follows Android's 12/24-hour preference; explicit 12/24 options override it. With a cutout, the clock and date start behind the foreground. **Show clock over foreground** sets both hour and minute in front; the individual hour/minute switches can split them, and separators/AM–PM follow the minute. The date switch is independent. The in-app preview approximates the device's crop. If a cutout is unavailable, all text stays above the photo as in Phase 1.
-3. Tap **Save changes**. The save atomically updates the active configuration, including an already-applied wallpaper. **Open wallpaper chooser** prompts to save first if there are unsaved edits. Canceling the chooser cancels only application of the wallpaper; it does not undo saved settings.
+2. The editor puts a large live preview on top (the photo with clock/date composited through the depth sandwich), then a **Background** card, then a **Clock / Date** tab bar with card sections. Clock: time format, clock size, the bundled typeface picker, text color, position and the three clock depth switches. Date: date style, an optional separate date typeface, the same text color and the date depth switch. Every typeface comes from Wallpep's own 112-family library (searchable picker); system time format follows Android's 12/24-hour preference, and explicit 12/24 options override it. With a cutout, the clock and date start behind the foreground: **Show clock over foreground** sets both hour and minute in front, the individual hour/minute switches can split them, separators/AM–PM follow the minute, and the date switch is independent. The in-app preview approximates the device's crop. If a cutout is unavailable, all text stays above the photo as in Phase 1.
+3. Tap **Save changes**. The save atomically updates the active configuration, including an already-applied wallpaper. **Open chooser** prompts to save first if there are unsaved edits. Canceling the chooser cancels only application of the wallpaper; it does not undo saved settings.
 4. In Android's live-wallpaper preview, choose **Home screen only** if the system offers destination choices. The exact system UI varies by device. No root, overlay, battery-optimization exemption or other special setup is needed.
 
 ### Home-screen destination
@@ -52,16 +52,17 @@ The public `ACTION_CHANGE_LIVE_WALLPAPER` API opens an OEM-controlled chooser an
 
 ## Font and asset licenses
 
-Only two font files are bundled; system sans is a third option. Both are SIL Open Font License 1.1, downloaded from the official Google Fonts repository at commit `6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec`, not from DepthX. License texts are committed alongside this notice:
+The app bundles its own typeface library: **112 families / 185 files**, all taken from the official Google Fonts repository (`github.com/google/fonts`, commit `6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec`) — the `ofl/` directory plus the five families that live in `apache/` (Luckiest Guy, Permanent Marker, Roboto Slab, Satisfy, Syncopate, the last as two files). No font, image or code came from DepthX, from any APK, or from another app.
 
-| Family / bundled file | Upstream path | License | SHA-256 |
-| --- | --- | --- | --- |
-| Outfit / `assets/fonts/outfit.ttf` | `ofl/outfit/Outfit[wght].ttf` | [OFL](licenses/fonts/Outfit/OFL.txt) | `fc7287273e66929776e2ba54f144fe699080bec29f61bf649d70d871468aeade` |
-| DM Sans / `assets/fonts/dm_sans.ttf` | `ofl/dmsans/DMSans[opsz,wght].ttf` | [OFL](licenses/fonts/DMSans/OFL.txt) | `8cd08d97e89c24d0aa92edd2f0f4c8ee6195eee9b7c9f154865a58b02f0c1c0d` |
+- The per-file inventory (family, category, upstream path, license, source URL) is [`licenses/fonts/FONTS.md`](licenses/fonts/FONTS.md).
+- Files live under `app/src/main/assets/fonts/<category>/<family>/`; each family folder also holds its own license text (`OFL.txt`, or `LICENSE-Apache-2.0.txt` for the Apache-licensed families), so the license text is bundled inside the APK next to the font it covers.
+- The picker lists families, not files: a family uses its static Regular face, else its upright variable face, as the representative. The date can follow the clock's face or use its own.
+- Provenance tooling: `tools/fonts/import-fonts.py` copies files out of a local `google/fonts` checkout, and `tools/fonts/generate-catalog.py` regenerates `FontCatalog.kt` from the inventory. Neither script downloads anything, and the committed files are the ones the build bundles.
+- The library is 65 MB of font files; the CI debug APK artifact grows from 56,575,497 bytes on `main` to 94,358,940 bytes with the library bundled (about 38 MB more, since the packaged files are compressed). That growth is accepted for this personal, never-published app.
 
 The app also bundles the photographic MODNet ONNX model (25,888,640 bytes / 24.7 MiB) for local one-shot inference. Treat its weights as **CC BY-NC-SA 4.0, non-commercial**; this is a personal-use-only app that will never be published. The [model notice](licenses/models/MODNet/NOTICE.md) credits the authors, identifies its exact SHA-256 and explains conflicting upstream license statements. ONNX Runtime is MIT; see its [license](licenses/onnxruntime/LICENSE.txt). If publication or commercial use ever becomes a goal, review the license and replace the model as necessary.
 
-The default backdrop and wallpaper thumbnail are generated vector/Canvas artwork, not personal photos. Tests contain no real user images.
+The built-in backdrop and wallpaper thumbnail are generated Canvas/vector artwork, not personal photos. Unit tests read only the bundled assets; no real user images are used.
 
 ## F54 verification checklist — **not yet run**
 

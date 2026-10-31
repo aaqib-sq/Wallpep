@@ -15,8 +15,8 @@ import android.text.TextDirectionHeuristics
 import android.text.TextPaint
 import android.text.format.DateFormat
 import android.view.View
+import dev.wallpep.fonts.FontCatalog
 import dev.wallpep.model.DateStyle
-import dev.wallpep.model.FontChoice
 import dev.wallpep.model.TimeStyle
 import dev.wallpep.model.WallpaperSettings
 import java.text.SimpleDateFormat
@@ -47,7 +47,7 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
-    private val fontCache = mutableMapOf<FontChoice, Typeface>()
+    private val fontCache = mutableMapOf<String, Typeface>()
 
     /** Ownership of both engine-local bitmaps transfers to this scene, together. */
     fun setImages(background: Bitmap?, foreground: Bitmap?) {
@@ -98,12 +98,12 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
             return destination
         }
         // A synthetic, code-drawn fallback; no copyrighted or personal photo is bundled.
-        fillPaint.shader = LinearGradient(0f, 0f, w, h, 0xff263f34.toInt(), 0xff111c19.toInt(), Shader.TileMode.CLAMP)
+        fillPaint.shader = LinearGradient(0f, 0f, w, h, 0xff1a1408.toInt(), 0xff000000.toInt(), Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, w, h, fillPaint)
         fillPaint.shader = null
-        fillPaint.color = 0x362f5946
+        fillPaint.color = 0x2ED4AF37
         canvas.drawCircle(w * 0.82f, h * 0.78f, w * 0.58f, fillPaint)
-        fillPaint.color = 0x40234235
+        fillPaint.color = 0x3AD4AF37
         val hill = Path().apply {
             moveTo(0f, h * 0.83f)
             cubicTo(w * 0.3f, h * 0.64f, w * 0.65f, h * 0.93f, w, h * 0.70f)
@@ -141,17 +141,18 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         val screen = resources.displayMetrics
         val previewScale = if (miniature) min(w / screen.widthPixels, h / screen.heightPixels).coerceAtMost(1f) else 1f
         val unit = screen.scaledDensity * previewScale
-        val font = fontCache.getOrPut(settings.font) { loadFont(settings.font) }
+        val clockFace = face(settings.font)
+        val dateFace = face(if (settings.dateFont == FontCatalog.FOLLOW_CLOCK) settings.font else settings.dateFont)
         val availableWidth = (w * 0.90f).coerceAtLeast(1f)
 
-        timePaint.typeface = font
+        timePaint.typeface = clockFace
         timePaint.color = settings.textColor
         timePaint.textSize = settings.clockSizeSp * unit
         timePaint.setShadowLayer(3f * unit, 0f, unit, 0x99000000.toInt())
         val measuredTime = timePaint.measureText(time.text)
         if (measuredTime > availableWidth) timePaint.textSize *= availableWidth / measuredTime
 
-        datePaint.typeface = font
+        datePaint.typeface = dateFace
         datePaint.color = settings.textColor
         datePaint.textSize = max(10f * unit, timePaint.textSize * 0.23f)
         datePaint.setShadowLayer(2f * unit, 0f, unit, 0x99000000.toInt())
@@ -224,14 +225,9 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         return SimpleDateFormat(pattern, locale).format(date)
     }
 
-    private fun loadFont(choice: FontChoice): Typeface = try {
-        when (choice) {
-            FontChoice.OUTFIT -> Typeface.createFromAsset(context.assets, "fonts/outfit.ttf")
-            FontChoice.DM_SANS -> Typeface.createFromAsset(context.assets, "fonts/dm_sans.ttf")
-            FontChoice.SYSTEM -> Typeface.create("sans-serif", Typeface.NORMAL)
-        }
-    } catch (_: RuntimeException) {
-        Typeface.DEFAULT
+    /** One loaded face per id per scene; the picker never grows this beyond the two in use. */
+    private fun face(id: String?): Typeface = fontCache.getOrPut(id ?: FontCatalog.DEFAULT_ID) {
+        FontCatalog.typeface(context, id)
     }
 
     companion object { private const val MAX_CLIP = 100_000f }
