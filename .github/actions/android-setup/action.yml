@@ -1,0 +1,14 @@
+name: Set up the pinned Android toolchain
+description: Install Java, Android SDK packages, and validate the Gradle wrapper.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+      with:
+        distribution: temurin
+        java-version: '17.0.17+10'
+    - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      with:
+        cmdline-tools-version: '13114758'
+        packages: 'platforms;android-37 build-tools;37.0.0'
+    - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
