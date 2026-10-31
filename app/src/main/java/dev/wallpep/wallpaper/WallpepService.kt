@@ -362,6 +362,7 @@ class WallpepService : WallpaperService() {
                     val colors = if (decoded != null) {
                         try { WallpaperColors.fromBitmap(decoded) ?: fallbackColors }
                         catch (_: RuntimeException) { fallbackColors }
+                        catch (_: OutOfMemoryError) { fallbackColors }
                     } else fallbackColors
                     // NonCancellable is used only to dispose or transfer the bitmaps on main.
                     // The ticket and gate prevent a late decode from reviving a hidden engine.

@@ -75,7 +75,8 @@ class BackgroundStore(context: Context) {
             decodeFile(file, maxDimension.coerceIn(64, 2048))
         } catch (_: IOException) {
             null
-        } catch (_: IllegalArgumentException) {
+        } catch (_: RuntimeException) {
+            // Includes damaged/unsupported decoder inputs; leave the normal wallpaper visible.
             null
         } catch (_: OutOfMemoryError) {
             null

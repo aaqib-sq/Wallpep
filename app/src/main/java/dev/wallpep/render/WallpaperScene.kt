@@ -192,7 +192,8 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         // range or its complement. Separators and AM/PM follow the minute. StaticLayout computes
         // the selection in visual rather than assumed left-to-right character order.
         val paint = TextPaint(timePaint).apply { textAlign = Paint.Align.LEFT }
-        val layoutWidth = ceil(timePaint.measureText(time.text).toDouble()).toInt().coerceAtLeast(1) + 2
+        // Leave room for locale-dependent shaping/bidi widths so StaticLayout never wraps.
+        val layoutWidth = ceil(timePaint.measureText(time.text).toDouble() * 2.0 + 16.0).toInt().coerceAtLeast(1)
         val layout = StaticLayout.Builder.obtain(time.text, 0, time.text.length, paint, layoutWidth)
             .setIncludePad(false)
             .setTextDirection(TextDirectionHeuristics.FIRSTSTRONG_LTR)

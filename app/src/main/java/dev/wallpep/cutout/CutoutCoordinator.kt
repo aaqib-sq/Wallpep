@@ -7,15 +7,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-
-internal enum class CutoutState { PROCESSING, READY, UNAVAILABLE }
 
 /**
  * Shared by the activity and all engines in this process. Requests for the same photo coalesce,
@@ -24,16 +19,11 @@ internal enum class CutoutState { PROCESSING, READY, UNAVAILABLE }
 internal object CutoutCoordinator {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val semaphore = Semaphore(1)
-    private val lock = Any()
-    private val mutableStates = MutableStateFlow<Map<String, CutoutState>>(emptyMap())
-    val states: StateFlow<Map<String, CutoutState>> = mutableStates.asStateFlow()
+    private val requests = CutoutRequests()
+    val states = requests.states
 
     fun ensure(context: Context, name: String?) {
-        if (name == null || !isSafeBackgroundName(name)) return
-        synchronized(lock) {
-            if (mutableStates.value.containsKey(name)) return
-            mutableStates.value = mutableStates.value + (name to CutoutState.PROCESSING)
-        }
+        if (name == null || !isSafeBackgroundName(name) || !requests.claim(name)) return
         // Never retain an Activity/Engine. Work may finish across configuration changes, but
         // normal process death simply interrupts it; there is no background restart mechanism.
         val app = context.applicationContext
@@ -60,9 +50,7 @@ internal object CutoutCoordinator {
                     // The current process still remembers the failed attempt if storage is full.
                 }
             }
-            synchronized(lock) {
-                mutableStates.value = mutableStates.value + (name to state)
-            }
+            requests.complete(name, state)
         }
     }
 

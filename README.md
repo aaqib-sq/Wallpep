@@ -1,6 +1,6 @@
 # Wallpep
 
-A personal-use Android live wallpaper: a clock and date with an optional on-device portrait cutout for a depth-sandwich effect. There are no accounts, network services, ads, payments or locked features. The implementation uses Android's public wallpaper, View, SurfaceHolder and Choreographer APIs; it does not use DepthX code or assets. This app is for personal use only and will never be published.
+A personal-use Android live wallpaper: a clock and date with an optional on-device portrait cutout for a depth-sandwich effect. There are no accounts, network services, ads, payments or locked features. The implementation uses Android's public wallpaper, View, SurfaceHolder and Choreographer APIs; it does not use DepthX code or assets. This app is intended for personal use only and will not be published as a product or store release. This GitHub repository and its CI debug artifacts are public; see the [license/status caveat](STATUS.md).
 
 > **Device status:** No Samsung Galaxy F54 5G or other physical device has been tested in this environment. The checklist below is a plan, not a claim of device behavior. Android's chooser controls destination options; choose **Home screen only** when offered. See [the chooser limitation](#home-screen-destination).
 
