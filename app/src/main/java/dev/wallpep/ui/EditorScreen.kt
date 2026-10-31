@@ -99,7 +99,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         }
         val page = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(activity.dp(20), activity.dp(14), activity.dp(20), activity.dp(28))
+            setPadding(activity.dp(20), activity.dp(12), activity.dp(20), activity.dp(24))
         }
         scroll.addView(page)
         column.setOnApplyWindowInsetsListener { view, insets ->
@@ -111,9 +111,9 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         column.addView(buildActionBar())
 
         buildHeader(page)
-        page.addView(buildPreviewPanel(), full(top = 20))
-        page.addView(buildPhotoCard(), full(top = 14))
-        page.addView(buildTabBar(), full(top = 16))
+        page.addView(buildPreviewPanel(), full(top = 16))
+        page.addView(buildPhotoCard(), full(top = 12))
+        page.addView(buildTabBar(), full(top = 12))
         clockPage = buildClockTab()
         datePage = buildDateTab().apply { visibility = View.GONE }
         page.addView(clockPage, full(top = 12))
@@ -147,8 +147,8 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         )
         page.addView(row)
         page.addView(
-            activity.uiText("Your golden hour.", 28f, Gold.TEXT, WallpepType.display(activity)),
-            full(top = 24),
+            activity.uiText("Your golden hour.", 26f, Gold.TEXT, WallpepType.display(activity)),
+            full(top = 20),
         )
         page.addView(
             activity.uiText(
@@ -181,8 +181,9 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         panel.addView(header)
 
         val metrics = activity.resources.displayMetrics
-        val previewHeight = (metrics.heightPixels * 0.46f).toInt()
-            .coerceIn(activity.dp(300), activity.dp(430))
+        // Large enough to judge the type, small enough that the tab bar stays on screen.
+        val previewHeight = (metrics.heightPixels * 0.36f).toInt()
+            .coerceIn(activity.dp(260), activity.dp(380))
         val previewWidth = (previewHeight * 0.56f).toInt()
             .coerceAtMost(metrics.widthPixels - activity.dp(96))
             .coerceAtLeast(activity.dp(150))
@@ -214,7 +215,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     }
 
     private fun buildPhotoCard(): View {
-        val cardView = card("01", "BACKGROUND", "Your photo is copied into app-private storage; the original is untouched.")
+        val cardView = card("01", "BACKGROUND", "Copied into app-private storage; the original is untouched.")
         photoStatus = activity.uiText("", 12.5f, Gold.TEXT).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
