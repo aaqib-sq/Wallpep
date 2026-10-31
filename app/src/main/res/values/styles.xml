@@ -1,10 +1,18 @@
 <resources>
+    <!-- Black canvas, gold accent: the app's own palette; no other app's visuals are reused. -->
     <style name="Theme.Wallpep" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#BDD6C4</item>
+        <item name="android:colorAccent">#D4AF37</item>
+        <item name="android:colorPrimary">#D4AF37</item>
+        <item name="android:colorPrimaryDark">#000000</item>
+        <item name="android:colorBackground">#000000</item>
+        <item name="android:textColorPrimary">#F4EFE3</item>
+        <item name="android:textColorSecondary">#9C9587</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowBackground">#101713</item>
-        <item name="android:navigationBarColor">#101713</item>
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
     </style>
 </resources>

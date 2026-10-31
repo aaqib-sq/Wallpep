@@ -1,5 +1,6 @@
 package dev.wallpep.model
 
+import dev.wallpep.fonts.FontCatalog
 import java.util.Locale
 
 const val SETTINGS_SCHEMA_VERSION = 1
@@ -7,7 +8,6 @@ const val SETTINGS_SCHEMA_VERSION = 1
 /** Names are persisted, so new values should be added rather than renaming old ones. */
 enum class TimeStyle { SYSTEM, TWELVE_HOUR, TWENTY_FOUR_HOUR }
 enum class DateStyle { FULL, SHORT, HIDDEN }
-enum class FontChoice { OUTFIT, DM_SANS, SYSTEM }
 
 object TextColors {
     const val WHITE: Int = -0x1
@@ -22,7 +22,9 @@ object TextColors {
 data class WallpaperSettings(
     val timeStyle: TimeStyle = TimeStyle.SYSTEM,
     val dateStyle: DateStyle = DateStyle.FULL,
-    val font: FontChoice = FontChoice.OUTFIT,
+    // Font ids are stable catalog ids; Phase 1/2's stored enum names are migrated on read.
+    val font: String = FontCatalog.DEFAULT_ID,
+    val dateFont: String = FontCatalog.FOLLOW_CLOCK,
     val textColor: Int = TextColors.WHITE,
     val clockSizeSp: Int = 72,
     val positionX: Int = 50,
@@ -35,6 +37,8 @@ data class WallpaperSettings(
 ) {
     val clockOverForeground: Boolean get() = hourOverForeground && minuteOverForeground
     fun sanitized(): WallpaperSettings = copy(
+        font = FontCatalog.sanitizeId(font),
+        dateFont = FontCatalog.sanitizeDateId(dateFont),
         textColor = textColor.takeIf { it in TextColors.all } ?: TextColors.WHITE,
         clockSizeSp = clockSizeSp.coerceIn(36, 120),
         positionX = positionX.coerceIn(0, 100),
