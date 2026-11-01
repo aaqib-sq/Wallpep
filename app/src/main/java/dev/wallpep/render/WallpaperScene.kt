@@ -3,6 +3,7 @@ package dev.wallpep.render
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Paint
@@ -26,7 +27,12 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 
-/** A View drawn to an Engine's SurfaceHolder, or into the settings screen's small preview. */
+/**
+ * A View drawn to an Engine's SurfaceHolder, or into the editor's full-width live preview.
+ *
+ * The clock and the date are independent layers: each has its own face, size, letter spacing,
+ * colour, opacity and position, and each can be flipped in front of the cutout subject.
+ */
 class WallpaperScene(context: Context, private val miniature: Boolean = false) : View(context) {
     var settings: WallpaperSettings = WallpaperSettings()
         set(value) { field = value.sanitized(); invalidate() }
@@ -71,18 +77,20 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
+        val now = Date()
         val destination = drawBackground(canvas, w, h)
-        val clock = prepareClock(w, h)
+        val clock = prepareClock(w, h, now)
+        val date = prepareDate(w, h, now)
         val foreground = foregroundBitmap?.takeUnless { it.isRecycled }
         // Without a usable foreground this is exactly the Phase 1 photo -> clock/date order.
         val plan = depthPlan(settings, destination != null && foreground != null)
-        drawTime(canvas, clock, hour = plan.hourBefore, minute = plan.minuteBefore)
-        if (plan.dateBefore) drawDate(canvas, clock)
+        if (settings.showClock) drawTime(canvas, clock, hour = plan.hourBefore, minute = plan.minuteBefore)
+        if (plan.dateBefore) drawDate(canvas, date)
         if (plan.foreground && destination != null && foreground != null) {
             canvas.drawBitmap(foreground, null, destination, foregroundPaint)
         }
-        drawTime(canvas, clock, hour = plan.hourAfter, minute = plan.minuteAfter)
-        if (plan.dateAfter) drawDate(canvas, clock)
+        if (settings.showClock) drawTime(canvas, clock, hour = plan.hourAfter, minute = plan.minuteAfter)
+        if (plan.dateAfter) drawDate(canvas, date)
     }
 
     /** Returns the exact photo destination so the cached foreground uses the identical crop. */
@@ -115,17 +123,11 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         return null
     }
 
-    private data class ClockDrawing(
-        val time: ClockText,
-        val date: String,
-        val x: Float,
-        val timeBaseline: Float,
-        val dateBaseline: Float,
-    )
+    private data class ClockDrawing(val time: ClockText, val x: Float, val baseline: Float)
+    private data class DateDrawing(val text: String, val x: Float, val baseline: Float)
 
-    private fun prepareClock(w: Float, h: Float): ClockDrawing {
-        val locale = resources.configuration.locales.get(0) ?: Locale.getDefault()
-        val now = Date()
+    private fun prepareClock(w: Float, h: Float, now: Date): ClockDrawing {
+        val locale = locale()
         val use24 = when (settings.timeStyle) {
             TimeStyle.SYSTEM -> DateFormat.is24HourFormat(context)
             TimeStyle.TWELVE_HOUR -> false
@@ -133,46 +135,47 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         }
         val pattern = DateFormat.getBestDateTimePattern(locale, if (use24) "Hm" else "hm")
         val time = formatClock(SimpleDateFormat(pattern, locale), now)
-        val date = when (settings.dateStyle) {
+        val unit = unitScale(w, h)
+        val availableWidth = (w * 0.90f).coerceAtLeast(1f)
+
+        timePaint.typeface = face(settings.font)
+        timePaint.textSize = settings.clockSizeSp * unit
+        timePaint.letterSpacing = settings.clockLetterSpacing / 100f
+        ink(timePaint, settings.textColor, settings.clockOpacity, 3f * unit, unit)
+        fitWidth(timePaint, time.text, availableWidth)
+
+        val fm = timePaint.fontMetrics
+        val blockHeight = fm.descent - fm.ascent
+        val top = (h * settings.positionY / 100f - blockHeight / 2f).coerceIn(0f, max(0f, h - blockHeight))
+        return ClockDrawing(time, centreX(w, settings.positionX, timePaint.measureText(time.text)), top - fm.ascent)
+    }
+
+    private fun prepareDate(w: Float, h: Float, now: Date): DateDrawing {
+        val locale = locale()
+        val raw = when (settings.dateStyle) {
             DateStyle.FULL -> format(locale, "EEEEMMMMd", now)
             DateStyle.SHORT -> format(locale, "EEEMMMd", now)
             DateStyle.HIDDEN -> ""
         }
-        val screen = resources.displayMetrics
-        val previewScale = if (miniature) min(w / screen.widthPixels, h / screen.heightPixels).coerceAtMost(1f) else 1f
-        val unit = screen.scaledDensity * previewScale
-        val clockFace = face(settings.font)
-        val dateFace = face(if (settings.dateFont == FontCatalog.FOLLOW_CLOCK) settings.font else settings.dateFont)
+        val text = if (raw.isEmpty() || !settings.dateUppercase) raw else raw.uppercase(locale)
+        val unit = unitScale(w, h)
         val availableWidth = (w * 0.90f).coerceAtLeast(1f)
+        val faceId = if (settings.dateFont == FontCatalog.FOLLOW_CLOCK) settings.font else settings.dateFont
 
-        timePaint.typeface = clockFace
-        timePaint.color = settings.textColor
-        timePaint.textSize = settings.clockSizeSp * unit
-        timePaint.setShadowLayer(3f * unit, 0f, unit, 0x99000000.toInt())
-        val measuredTime = timePaint.measureText(time.text)
-        if (measuredTime > availableWidth) timePaint.textSize *= availableWidth / measuredTime
+        datePaint.typeface = face(faceId)
+        datePaint.textSize = settings.dateSizeSp * unit
+        datePaint.letterSpacing = settings.dateLetterSpacing / 100f
+        ink(datePaint, settings.dateColor ?: settings.textColor, settings.dateOpacity, 2f * unit, unit)
+        fitWidth(datePaint, text, availableWidth)
 
-        datePaint.typeface = dateFace
-        datePaint.color = settings.textColor
-        datePaint.textSize = max(10f * unit, timePaint.textSize * 0.23f)
-        datePaint.setShadowLayer(2f * unit, 0f, unit, 0x99000000.toInt())
-        val measuredDate = datePaint.measureText(date)
-        if (measuredDate > availableWidth) datePaint.textSize *= availableWidth / measuredDate
-
-        val fm = timePaint.fontMetrics
-        val dateFm = datePaint.fontMetrics
-        val gap = if (date.isEmpty()) 0f else 5f * unit
-        val totalHeight = (fm.descent - fm.ascent) + if (date.isEmpty()) 0f else gap + dateFm.descent - dateFm.ascent
-        val desiredCenterY = h * settings.positionY / 100f
-        val top = (desiredCenterY - totalHeight / 2f).coerceIn(0f, max(0f, h - totalHeight))
-        val halfWidth = max(timePaint.measureText(time.text), datePaint.measureText(date)) / 2f
-        val x = (w * settings.positionX / 100f).coerceIn(min(w / 2f, halfWidth), max(w / 2f, w - halfWidth))
-        val timeBaseline = top - fm.ascent
-        return ClockDrawing(time, date, x, timeBaseline, timeBaseline + fm.descent + gap - dateFm.ascent)
+        val fm = datePaint.fontMetrics
+        val blockHeight = fm.descent - fm.ascent
+        val top = (h * settings.datePositionY / 100f - blockHeight / 2f).coerceIn(0f, max(0f, h - blockHeight))
+        return DateDrawing(text, centreX(w, settings.datePositionX, datePaint.measureText(text)), top - fm.ascent)
     }
 
-    private fun drawDate(canvas: Canvas, clock: ClockDrawing) {
-        if (clock.date.isNotEmpty()) canvas.drawText(clock.date, clock.x, clock.dateBaseline, datePaint)
+    private fun drawDate(canvas: Canvas, date: DateDrawing) {
+        if (date.text.isNotEmpty()) canvas.drawText(date.text, date.x, date.baseline, datePaint)
     }
 
     private fun drawTime(canvas: Canvas, clock: ClockDrawing, hour: Boolean, minute: Boolean) {
@@ -180,12 +183,12 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         val time = clock.time
         if (hour && minute) {
             // The common case remains byte-for-byte the same formatting/draw call as Phase 1.
-            canvas.drawText(time.text, clock.x, clock.timeBaseline, timePaint)
+            canvas.drawText(time.text, clock.x, clock.baseline, timePaint)
             return
         }
         if (!time.hasHour) {
             // Unrecognized locale pattern: render the whole clock with the minute, never drop it.
-            if (minute) canvas.drawText(time.text, clock.x, clock.timeBaseline, timePaint)
+            if (minute) canvas.drawText(time.text, clock.x, clock.baseline, timePaint)
             return
         }
 
@@ -205,12 +208,12 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         val selection = RectF()
         path.computeBounds(selection, true)
         if (selection.width() <= 0f) {
-            if (minute) canvas.drawText(time.text, clock.x, clock.timeBaseline, timePaint)
+            if (minute) canvas.drawText(time.text, clock.x, clock.baseline, timePaint)
             return
         }
         val save = canvas.save()
         val lineCenter = (layout.getLineLeft(0) + layout.getLineRight(0)) / 2f
-        canvas.translate(clock.x - lineCenter, clock.timeBaseline - layout.getLineBaseline(0))
+        canvas.translate(clock.x - lineCenter, clock.baseline - layout.getLineBaseline(0))
         if (hour) {
             canvas.clipRect(selection.left, -MAX_CLIP, selection.right, MAX_CLIP)
         } else {
@@ -220,12 +223,40 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         canvas.restoreToCount(save)
     }
 
+    private fun locale(): Locale = resources.configuration.locales.get(0) ?: Locale.getDefault()
+
     private fun format(locale: Locale, skeleton: String, date: Date): String {
         val pattern = DateFormat.getBestDateTimePattern(locale, skeleton)
         return SimpleDateFormat(pattern, locale).format(date)
     }
 
-    /** One loaded face per id per scene; the picker never grows this beyond the two in use. */
+    /** Sp -> px, scaled down when this scene is the small on-screen preview rather than a screen. */
+    private fun unitScale(w: Float, h: Float): Float {
+        val screen = resources.displayMetrics
+        val previewScale = if (miniature) min(w / screen.widthPixels, h / screen.heightPixels).coerceAtMost(1f) else 1f
+        return screen.scaledDensity * previewScale
+    }
+
+    private fun fitWidth(paint: Paint, text: String, availableWidth: Float) {
+        if (text.isEmpty()) return
+        val measured = paint.measureText(text)
+        if (measured > availableWidth && measured > 0f) paint.textSize *= availableWidth / measured
+    }
+
+    /** Keeps a text block inside the edges while honouring the 0-100 position setting. */
+    private fun centreX(w: Float, positionPercent: Int, textWidth: Float): Float {
+        val halfWidth = textWidth / 2f
+        return (w * positionPercent / 100f).coerceIn(min(w / 2f, halfWidth), max(w / 2f, w - halfWidth))
+    }
+
+    /** Layer colour and its drop shadow, both scaled by the layer's opacity percent. */
+    private fun ink(paint: Paint, color: Int, opacityPercent: Int, shadowRadius: Float, shadowDy: Float) {
+        val alpha = (255f * opacityPercent.coerceIn(0, 100) / 100f).toInt()
+        paint.color = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+        paint.setShadowLayer(shadowRadius, 0f, shadowDy, (0x99 * alpha / 255) shl 24)
+    }
+
+    /** One loaded face per id per scene; the editor never grows this beyond the faces in use. */
     private fun face(id: String?): Typeface = fontCache.getOrPut(id ?: FontCatalog.DEFAULT_ID) {
         FontCatalog.typeface(context, id)
     }

@@ -2,7 +2,6 @@ package dev.wallpep.ui
 
 import android.app.AlertDialog
 import android.content.Context
-import android.graphics.Typeface
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -18,7 +17,7 @@ import dev.wallpep.fonts.FontFamily
 
 /**
  * Searchable picker over the bundled library. Each row is drawn in its own family so the
- * choice is judged by eye; only a handful of faces are held at a time.
+ * choice is judged by eye; loaded faces come from the small shared LRU cache.
  */
 internal object FontPickerDialog {
 
@@ -28,10 +27,6 @@ internal object FontPickerDialog {
         val subtitle: String,
         val family: FontFamily?,
     )
-
-    private val faceCache = object : LinkedHashMap<String, Typeface>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Typeface>?): Boolean = size > 16
-    }
 
     fun show(context: Context, allowFollowClock: Boolean, selectedId: String, onSelected: (String) -> Unit) {
         val extras = buildList {
@@ -150,7 +145,7 @@ internal object FontPickerDialog {
             title.typeface = if (family == null) {
                 WallpepType.bodyMedium(context)
             } else {
-                faceCache.getOrPut(family.id) { FontCatalog.typeface(context, family.id) }
+                FaceCache.get(context, family.id)
             }
             subtitle.text = row.subtitle
             return holder

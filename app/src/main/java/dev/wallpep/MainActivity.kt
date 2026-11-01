@@ -315,8 +315,20 @@ class MainActivity : ComponentActivity() {
     private fun writeDraft(s: WallpaperSettings) = Bundle().apply {
         putString("time", s.timeStyle.name); putString("date", s.dateStyle.name)
         putString("font", s.font); putString("dateFont", s.dateFont)
-        putInt("color", s.textColor); putInt("size", s.clockSizeSp)
-        putInt("x", s.positionX); putInt("y", s.positionY); putString("background", s.backgroundName)
+        putInt("color", s.textColor)
+        // An absent date colour means the date follows the clock colour.
+        s.dateColor?.let { putInt("dateColor", it) }
+        putInt("size", s.clockSizeSp)
+        putInt("clockSpacing", s.clockLetterSpacing)
+        putInt("clockOpacity", s.clockOpacity)
+        putBoolean("showClock", s.showClock)
+        putInt("x", s.positionX); putInt("y", s.positionY)
+        putInt("dateSize", s.dateSizeSp)
+        putInt("dateSpacing", s.dateLetterSpacing)
+        putInt("dateOpacity", s.dateOpacity)
+        putBoolean("dateUppercase", s.dateUppercase)
+        putInt("dateX", s.datePositionX); putInt("dateY", s.datePositionY)
+        putString("background", s.backgroundName)
         putBoolean("hourForeground", s.hourOverForeground)
         putBoolean("minuteForeground", s.minuteOverForeground)
         putBoolean("dateForeground", s.dateOverForeground)
@@ -328,9 +340,19 @@ class MainActivity : ComponentActivity() {
         font = FontCatalog.sanitizeId(bundle.getString("font") ?: active.font),
         dateFont = FontCatalog.sanitizeDateId(bundle.getString("dateFont") ?: active.dateFont),
         textColor = bundle.getInt("color", active.textColor),
+        dateColor = if (bundle.containsKey("dateColor")) bundle.getInt("dateColor") else null,
         clockSizeSp = bundle.getInt("size", active.clockSizeSp),
+        clockLetterSpacing = bundle.getInt("clockSpacing", active.clockLetterSpacing),
+        clockOpacity = bundle.getInt("clockOpacity", active.clockOpacity),
+        showClock = bundle.getBoolean("showClock", active.showClock),
         positionX = bundle.getInt("x", active.positionX),
         positionY = bundle.getInt("y", active.positionY),
+        dateSizeSp = bundle.getInt("dateSize", active.dateSizeSp),
+        dateLetterSpacing = bundle.getInt("dateSpacing", active.dateLetterSpacing),
+        dateOpacity = bundle.getInt("dateOpacity", active.dateOpacity),
+        dateUppercase = bundle.getBoolean("dateUppercase", active.dateUppercase),
+        datePositionX = bundle.getInt("dateX", active.datePositionX),
+        datePositionY = bundle.getInt("dateY", active.datePositionY),
         backgroundName = bundle.getString("background"),
         hourOverForeground = bundle.getBoolean("hourForeground", active.hourOverForeground),
         minuteOverForeground = bundle.getBoolean("minuteForeground", active.minuteOverForeground),
