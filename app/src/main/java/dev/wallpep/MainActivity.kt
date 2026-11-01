@@ -181,12 +181,13 @@ class MainActivity : ComponentActivity() {
         if (::editor.isInitialized) editor.render(draft, active, photoLabel(), initialized && !busy)
     }
 
+    /** Short status for the pill over the live preview; nothing here is an instruction. */
     private fun photoLabel(): String {
-        val name = draft.backgroundName ?: return "Built-in golden backdrop · choose a photo to make it yours."
+        val name = draft.backgroundName ?: return "Built-in backdrop"
         return when (CutoutCoordinator.states.value[name]) {
-            CutoutState.PROCESSING -> "Photo selected · building the depth cutout on this device…"
-            CutoutState.READY -> "Photo selected · depth sandwich ready"
-            else -> "Photo selected · center-cropped to your screen"
+            CutoutState.PROCESSING -> "Photo · building cutout on device…"
+            CutoutState.READY -> "Photo · depth ready"
+            else -> "Photo · center-cropped"
         }
     }
 
