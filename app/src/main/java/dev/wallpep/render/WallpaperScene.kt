@@ -22,6 +22,7 @@ import dev.wallpep.model.TimeStyle
 import dev.wallpep.model.WallpaperSettings
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.LinkedHashMap
 import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.max
@@ -53,7 +54,11 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
-    private val fontCache = mutableMapOf<String, Typeface>()
+    // Only the clock and date faces are ever in use; a tiny LRU keeps repeated face changes
+    // from accumulating every family the user tries in the editor preview.
+    private val fontCache = object : LinkedHashMap<String, Typeface>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Typeface>?): Boolean = size > 4
+    }
 
     /** Ownership of both engine-local bitmaps transfers to this scene, together. */
     fun setImages(background: Bitmap?, foreground: Bitmap?) {
