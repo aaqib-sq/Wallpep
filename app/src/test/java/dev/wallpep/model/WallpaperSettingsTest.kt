@@ -41,6 +41,49 @@ class WallpaperSettingsTest {
         assertTrue(defaults.copy(dateOverForeground = true).dateOverForeground)
     }
 
+    @Test fun typographyColourAndOpacityAreClamped() {
+        val s = WallpaperSettings(
+            clockSizeSp = 5,
+            clockLetterSpacing = 99,
+            clockOpacity = 0,
+            dateSizeSp = 900,
+            dateLetterSpacing = -4,
+            dateOpacity = 400,
+            datePositionX = -20,
+            datePositionY = 480,
+            dateColor = 0x123456,
+        ).sanitized()
+        assertEquals(WallpaperSettings.MIN_CLOCK_SIZE, s.clockSizeSp)
+        assertEquals(WallpaperSettings.MAX_LETTER_SPACING, s.clockLetterSpacing)
+        assertEquals(WallpaperSettings.MIN_OPACITY, s.clockOpacity)
+        assertEquals(WallpaperSettings.MAX_DATE_SIZE, s.dateSizeSp)
+        assertEquals(0, s.dateLetterSpacing)
+        assertEquals(100, s.dateOpacity)
+        assertEquals(0, s.datePositionX)
+        assertEquals(100, s.datePositionY)
+        assertNull(s.dateColor)
+    }
+
+    @Test fun dateColourFollowsTheClockUntilItIsOverridden() {
+        assertNull(WallpaperSettings().dateColor)
+        assertEquals(TextColors.SAND, WallpaperSettings(dateColor = TextColors.SAND).sanitized().dateColor)
+        assertEquals(TextColors.WHITE, WallpaperSettings(textColor = TextColors.WHITE).sanitized().textColor)
+    }
+
+    @Test fun editorDefaultsKeepThePhaseTwoLook() {
+        val defaults = WallpaperSettings()
+        assertEquals(72, defaults.clockSizeSp)
+        assertEquals(0, defaults.clockLetterSpacing)
+        assertEquals(100, defaults.clockOpacity)
+        assertTrue(defaults.showClock)
+        assertEquals(17, defaults.dateSizeSp)
+        assertEquals(0, defaults.dateLetterSpacing)
+        assertEquals(100, defaults.dateOpacity)
+        assertFalse(defaults.dateUppercase)
+        assertEquals(50, defaults.datePositionX)
+        assertEquals(38, defaults.datePositionY)
+    }
+
     @Test fun unknownEnumValuesUseDefaults() {
         assertEquals(TimeStyle.SYSTEM, storedEnum("FUTURE", TimeStyle.SYSTEM))
         assertEquals(TimeStyle.TWELVE_HOUR, storedEnum("twelve_hour", TimeStyle.SYSTEM))

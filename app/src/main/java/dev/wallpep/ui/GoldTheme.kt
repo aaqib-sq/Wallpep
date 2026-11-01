@@ -7,12 +7,17 @@ import android.graphics.drawable.GradientDrawable
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.Switch
 import android.widget.TextView
+import dev.wallpep.fonts.FontCatalog
+import java.util.LinkedHashMap
 import java.util.WeakHashMap
 
 /**
  * Wallpep's golden studio palette: black surfaces, gold accents, warm off-white type.
- * Colours are the app's own; nothing here is taken from another app.
+ * Gold is reserved for primary buttons, the active tab and selected states; every other
+ * border is a neutral muted hairline. Colours are the app's own; nothing here is taken
+ * from another app.
  */
 object Gold {
     val BACKGROUND = 0xFF000000.toInt()
@@ -23,6 +28,8 @@ object Gold {
     val GOLD_LIGHT = 0xFFF3E3A6.toInt()
     val GOLD_BORDER = 0x59D4AF37.toInt()
     val GOLD_BORDER_STRONG = 0xA6D4AF37.toInt()
+    /** The muted hairline used by every unselected card, field and segmented control. */
+    val LINE = 0xFF2C2C2C.toInt()
     val TEXT = 0xFFF4EFE3.toInt()
     val MUTED = 0xFF9C9587.toInt()
     val ON_GOLD = 0xFF0A0A0A.toInt()
@@ -44,6 +51,28 @@ object WallpepType {
     fun body(context: Context): Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
 
     fun bodyMedium(context: Context): Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+}
+
+/**
+ * A small LRU of bundled faces shared by the font cards and the full-library picker, so a
+ * screen full of samples never holds more than a handful of loaded files.
+ */
+internal object FaceCache {
+    private const val MAX_FACES = 24
+
+    private val faces = object : LinkedHashMap<String, Typeface>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Typeface>?): Boolean = size > MAX_FACES
+    }
+
+    fun get(context: Context, id: String?): Typeface {
+        val key = id ?: FontCatalog.DEFAULT_ID
+        synchronized(faces) {
+            faces[key]?.let { return it }
+            val face = FontCatalog.typeface(context, id)
+            faces[key] = face
+            return face
+        }
+    }
 }
 
 internal fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
@@ -72,12 +101,12 @@ internal fun Context.uiText(
     if (tracking != 0f) letterSpacing = tracking
 }
 
-/** A black card with a subtle golden hairline border. */
-internal fun Context.card(radiusDp: Float = 20f, fill: Int = Gold.SURFACE, padding: Int = 16): LinearLayout =
+/** A black card with a muted (non-gold) hairline border. */
+internal fun Context.card(radiusDp: Float = 18f, fill: Int = Gold.SURFACE, padding: Int = 16): LinearLayout =
     LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(padding), dp(padding), dp(padding), dp(padding))
-        background = shape(fill, radiusDp, Gold.GOLD_BORDER)
+        background = shape(fill, radiusDp, Gold.LINE)
     }
 
 internal fun Context.actionButton(label: String, primary: Boolean, onClick: () -> Unit): Button =
@@ -85,11 +114,11 @@ internal fun Context.actionButton(label: String, primary: Boolean, onClick: () -
         text = label
         isAllCaps = false
         textSize = 13.5f
-        typeface = WallpepType.bodyMedium(context)
-        setTextColor(if (primary) Gold.ON_GOLD else Gold.GOLD)
-        background = if (primary) shape(Gold.GOLD, 14f) else shape(0x00000000, 14f, Gold.GOLD_BORDER_STRONG)
-        minHeight = dp(48)
         stateListAnimator = null
+        typeface = WallpepType.bodyMedium(context)
+        setTextColor(if (primary) Gold.ON_GOLD else Gold.TEXT)
+        background = if (primary) shape(Gold.GOLD, 14f) else shape(0x00000000, 14f, Gold.LINE)
+        minHeight = dp(48)
         setOnClickListener { onClick() }
     }
 
@@ -99,4 +128,23 @@ internal fun Context.goldSeekBar(maximum: Int, description: String): SeekBar = S
     progressTintList = ColorStateList.valueOf(Gold.GOLD)
     thumbTintList = ColorStateList.valueOf(Gold.GOLD_LIGHT)
     progressBackgroundTintList = ColorStateList.valueOf(Gold.TRACK)
+}
+
+/** A switch tinted with the gold accent only while checked. */
+@Suppress("UseSwitchCompatOrMaterialCode")
+internal fun Context.goldSwitch(label: String): Switch = Switch(this).apply {
+    text = label
+    textSize = 12.5f
+    setTextColor(Gold.TEXT)
+    typeface = WallpepType.body(context)
+    minHeight = dp(44)
+    setPadding(0, dp(2), 0, dp(2))
+    thumbTintList = ColorStateList(
+        arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+        intArrayOf(Gold.GOLD, Gold.SURFACE_RAISED),
+    )
+    trackTintList = ColorStateList(
+        arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+        intArrayOf(Gold.GOLD_BORDER_STRONG, Gold.LINE),
+    )
 }
