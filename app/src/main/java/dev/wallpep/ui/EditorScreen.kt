@@ -59,6 +59,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     private lateinit var clockPage: LinearLayout
     private lateinit var datePage: LinearLayout
     private lateinit var removeButton: Button
+    private lateinit var pageScroll: ScrollView
 
     init {
         root = buildScreen()
@@ -86,13 +87,13 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             orientation = LinearLayout.VERTICAL
             setPadding(activity.dp(20), activity.dp(14), activity.dp(20), activity.dp(24))
         }
-        val scroll = ScrollView(activity).apply {
+        pageScroll = ScrollView(activity).apply {
             isFillViewport = true
             isVerticalScrollBarEnabled = false
             setBackgroundColor(Gold.BACKGROUND)
             addView(page)
         }
-        column.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        column.addView(pageScroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         notice = activity.uiText("", 11.5f, Gold.TEXT).apply {
             setPadding(activity.dp(12), activity.dp(10), activity.dp(12), activity.dp(10))
@@ -633,6 +634,8 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     private fun selectTab(next: Tab) {
         if (::clockPage.isInitialized) clockPage.visibility = if (next == Tab.CLOCK) View.VISIBLE else View.GONE
         if (::datePage.isInitialized) datePage.visibility = if (next == Tab.DATE) View.VISIBLE else View.GONE
+        // Each tab starts at its first card rather than inheriting the other tab's scroll offset.
+        if (::pageScroll.isInitialized) pageScroll.scrollTo(0, 0)
         styleTab(clockTab, next == Tab.CLOCK)
         styleTab(dateTab, next == Tab.DATE)
     }
