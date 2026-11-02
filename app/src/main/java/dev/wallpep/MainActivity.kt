@@ -433,6 +433,8 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
 
     private fun applyToSystem() {
         if (!ready()) return
+        // Applying is an explicit intent: a brand-new design is kept even if nothing was edited.
+        if (currentDesignId == null) dirty = true
         persistNow()
         openChooser()
     }
@@ -563,6 +565,9 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
     }
 
     private fun refreshThumbnails() {
+        val live = designs.map { it.id }.toSet()
+        val stale = thumbnailCache.keys.filterNot { it in live }
+        stale.forEach { id -> thumbnailCache.remove(id)?.second?.recycle() }
         val pending = home.pendingThumbnails()
         if (pending.isEmpty()) return
         val targets = designs.filter { it.id in pending }

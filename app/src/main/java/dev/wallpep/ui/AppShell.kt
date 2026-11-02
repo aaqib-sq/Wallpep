@@ -36,6 +36,14 @@ class AppShell(
         content.addView(settings, FrameLayout.LayoutParams(-1, -1))
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
         root.addView(buildBottomBar(), FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        // The bar's own height (including the navigation-bar inset) is reserved so no screen
+        // content hides behind it.
+        bottomBar.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            val height = bottom - top
+            if (height != oldBottom - oldTop && content.paddingBottom != height) {
+                content.setPadding(0, 0, 0, height)
+            }
+        }
 
         editorLayer.addView(editor, FrameLayout.LayoutParams(-1, -1))
         editorLayer.visibility = View.GONE
