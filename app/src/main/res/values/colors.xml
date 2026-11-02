@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Obsidian Pulse surfaces and the single electric-blue accent. No gold anywhere. -->
+    <color name="obsidian_background">#0D0E13</color>
+    <color name="obsidian_surface">#121318</color>
+    <color name="obsidian_surface_raised">#1A1B20</color>
+    <color name="obsidian_settings_surface">#161820</color>
+    <color name="pulse_blue">#2563EB</color>
+    <color name="pulse_blue_light">#60A5FA</color>
+    <color name="obsidian_line">#262832</color>
+    <color name="obsidian_text">#F3F5F9</color>
+    <color name="obsidian_muted">#8C93A3</color>
+    <color name="ic_launcher_background">#0D0E13</color>
+</resources>

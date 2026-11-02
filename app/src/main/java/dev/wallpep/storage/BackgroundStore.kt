@@ -110,6 +110,20 @@ class BackgroundStore(context: Context) {
         }
     }
 
+    /**
+     * Deletes every cached cutout sidecar, including completed failures, so the next ensure runs
+     * the model again. The user's own photo files are never touched.
+     */
+    suspend fun clearCache(): Int = withContext(Dispatchers.IO) {
+        synchronized(fileLock) {
+            var removed = 0
+            directory.listFiles()?.forEach { file ->
+                if (cutoutBackgroundName(file.name) != null && file.delete()) removed++
+            }
+            removed
+        }
+    }
+
     fun delete(name: String?) = synchronized(fileLock) {
         imageFile(name)?.delete()
         cutoutFile(name)?.delete()
