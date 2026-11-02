@@ -26,7 +26,7 @@ class StyleTest {
 
     @Test fun onlyTheVerticalFormatsStackAndSaySo() {
         ClockFormats.all.forEach { format ->
-            assertEquals(format + " stacking flag", format.stacked, format.label.contains("vertical"))
+            assertEquals("$format stacking flag", format.stacked, format.label.contains("vertical"))
         }
         assertTrue(ClockFormats.all.count { it.stacked } >= 4)
     }
