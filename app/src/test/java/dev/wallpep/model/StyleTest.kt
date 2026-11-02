@@ -25,10 +25,12 @@ class StyleTest {
     }
 
     @Test fun onlyTheVerticalFormatsStackAndSaySo() {
-        ClockFormats.all.forEach { format ->
-            assertEquals("$format stacking flag", format.stacked, format.label.contains("vertical"))
+        ClockFormats.all.filter { it.label.contains("vertical") }.forEach { format ->
+            assertTrue("$format should stack", format.stacked)
         }
-        assertTrue(ClockFormats.all.count { it.stacked } >= 4)
+        // The structure file marks hh/mm as the one stacked format that is not called "vertical".
+        assertEquals("hh/mm", ClockFormats.all.first { it.stacked && !it.label.contains("vertical") }.label)
+        assertEquals(5, ClockFormats.all.count { it.stacked })
     }
 
     @Test fun secondsFormatsMentionSecondsAndTheRestDoNot() {
