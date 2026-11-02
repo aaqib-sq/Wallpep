@@ -103,6 +103,70 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     private var selectedTab = Tab.CLOCK
     private var selectedTransformLayer = TransformLayer.CLOCK
     private var selectedParallaxTab = ParallaxTab.LAYERS
+    private enum class SubTab(val label: String) {
+        FORMAT("Format"),
+        CONTENT("Content"),
+        TYPOGRAPHY("Typography"),
+        COLORS("Colors"),
+        POSITION("Position"),
+        EFFECTS("Effects"),
+        TRANSFORM("Transform"),
+    }
+    private val formatSubTabs = listOf(SubTab.FORMAT, SubTab.TYPOGRAPHY, SubTab.COLORS, SubTab.POSITION, SubTab.EFFECTS, SubTab.TRANSFORM)
+    private val textSubTabs = listOf(SubTab.CONTENT, SubTab.TYPOGRAPHY, SubTab.COLORS, SubTab.POSITION, SubTab.EFFECTS, SubTab.TRANSFORM)
+    private var selectedClockSubTab = SubTab.FORMAT
+    private var selectedDateSubTab = SubTab.FORMAT
+    private var selectedTextSubTab = SubTab.CONTENT
+    private lateinit var clockSubTabBar: SubTabBar
+    private lateinit var dateSubTabBar: SubTabBar
+    private lateinit var textSubTabBar: SubTabBar
+    private lateinit var clockSections: Map<SubTab, View>
+    private lateinit var dateSections: Map<SubTab, View>
+    private lateinit var textSections: Map<SubTab, View>
+    private inner class SubTabBar(val view: View, private val buttons: Map<SubTab, TextView>) {
+        fun render(selected: SubTab) {
+            buttons.forEach { (sub, button) ->
+                button.background = if (sub == selected) activity.shape(Pulse.ACCENT, 11f) else activity.shape(0x00000000, 11f)
+                button.setTextColor(if (sub == selected) Pulse.ON_ACCENT else Pulse.MUTED)
+            }
+        }
+    }
+    private fun buildSubTabBar(subTabs: List<SubTab>, selected: SubTab, onSelect: (SubTab) -> Unit): SubTabBar {
+        val scroll = HorizontalScrollView(activity)
+        scroll.isHorizontalScrollBarEnabled = false
+        val row = LinearLayout(activity)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.setPadding(16, 8, 16, 4)
+        row.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        val buttons = mutableMapOf<SubTab, TextView>()
+        subTabs.forEach { sub ->
+            val button = activity.uiText(sub.label, 12.5f, Pulse.MUTED, WallpepType.display(activity), 0.04f).apply {
+                setPadding(20, 10, 20, 10)
+            }
+            val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            params.setMargins(0, 0, 8, 0)
+            button.layoutParams = params
+            button.setOnClickListener { onSelect(sub) }
+            row.addView(button)
+            buttons[sub] = button
+        }
+        scroll.addView(row)
+        val bar = SubTabBar(scroll, buttons)
+        bar.render(selected)
+        return bar
+    }
+    private fun renderClockSubTab() {
+        clockSubTabBar.render(selectedClockSubTab)
+        clockSections.forEach { (sub, section) -> section.visibility = if (sub == selectedClockSubTab) View.VISIBLE else View.GONE }
+    }
+    private fun renderDateSubTab() {
+        dateSubTabBar.render(selectedDateSubTab)
+        dateSections.forEach { (sub, section) -> section.visibility = if (sub == selectedDateSubTab) View.VISIBLE else View.GONE }
+    }
+    private fun renderTextSubTab() {
+        textSubTabBar.render(selectedTextSubTab)
+        textSections.forEach { (sub, section) -> section.visibility = if (sub == selectedTextSubTab) View.VISIBLE else View.GONE }
+    }
     private lateinit var previewFrame: FrameLayout
     private lateinit var fullscreenOverlay: FrameLayout
     private var livePreview = true
@@ -347,7 +411,13 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             read = { s -> ClockFormats.all.indexOfFirst { it.id == s.clockFormat }.coerceAtLeast(0) },
             write = { s, index -> s.copy(clockFormat = ClockFormats.all[index].id) },
         )
-        page.addView(format)
+        clockSections = emptyMap()
+    clockSubTabBar = buildSubTabBar(formatSubTabs, selectedClockSubTab) { sub ->
+        selectedClockSubTab = sub
+        renderClockSubTab()
+    }
+    page.addView(clockSubTabBar.view)
+    page.addView(format)
 
         val typography = section("Typography")
         faceCards(typography, CLOCK_FACES, read = { it.font }, write = { s, id -> s.copy(font = id) })
@@ -415,6 +485,15 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         val transform = section("Transform")
         transformSection(transform, read = { it.clockTransform }, write = { s, value -> s.copy(clockTransform = value) })
         page.addView(transform)
+    clockSections = mapOf(
+        SubTab.FORMAT to format,
+        SubTab.TYPOGRAPHY to typography,
+        SubTab.COLORS to colors,
+        SubTab.POSITION to position,
+        SubTab.EFFECTS to effects,
+        SubTab.TRANSFORM to transform,
+    )
+    renderClockSubTab()
         return page
     }
 
@@ -432,7 +511,13 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             write = { s, index -> s.copy(dateFormat = DateFormats.all[index].id) },
         )
         switch(format, "All Uppercase", read = { it.dateUppercase }, write = { s, on -> s.copy(dateUppercase = on) })
-        page.addView(format)
+        dateSections = emptyMap()
+    dateSubTabBar = buildSubTabBar(formatSubTabs, selectedDateSubTab) { sub ->
+        selectedDateSubTab = sub
+        renderDateSubTab()
+    }
+    page.addView(dateSubTabBar.view)
+    page.addView(format)
 
         val typography = section("Typography")
         faceCards(typography, DATE_FACES, read = { it.dateFont }, write = { s, id -> s.copy(dateFont = id) })
@@ -494,6 +579,15 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         val transform = section("Transform")
         transformSection(transform, read = { it.dateTransform }, write = { s, value -> s.copy(dateTransform = value) })
         page.addView(transform)
+    dateSections = mapOf(
+        SubTab.FORMAT to format,
+        SubTab.TYPOGRAPHY to typography,
+        SubTab.COLORS to colors,
+        SubTab.POSITION to position,
+        SubTab.EFFECTS to effects,
+        SubTab.TRANSFORM to transform,
+    )
+    renderDateSubTab()
         return page
     }
 
@@ -512,7 +606,13 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             val stored = settings.text.content
             if (!field.hasFocus() && field.text.toString() != stored) field.setText(stored)
         }
-        page.addView(content)
+        textSections = emptyMap()
+    textSubTabBar = buildSubTabBar(textSubTabs, selectedTextSubTab) { sub ->
+        selectedTextSubTab = sub
+        renderTextSubTab()
+    }
+    page.addView(textSubTabBar.view)
+    page.addView(content)
 
         val typography = section("Typography")
         faceCards(typography, TEXT_FACES, read = { it.text.font }, write = { s, id -> s.copy(text = s.text.copy(font = id)) })
@@ -569,6 +669,15 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         val transform = section("Transform")
         transformSection(transform, read = { it.text.transform }, write = { s, value -> s.copy(text = s.text.copy(transform = value)) })
         page.addView(transform)
+    textSections = mapOf(
+        SubTab.CONTENT to content,
+        SubTab.TYPOGRAPHY to typography,
+        SubTab.COLORS to colors,
+        SubTab.POSITION to position,
+        SubTab.EFFECTS to effects,
+        SubTab.TRANSFORM to transform,
+    )
+    renderTextSubTab()
         return page
     }
 
