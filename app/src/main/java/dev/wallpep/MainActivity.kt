@@ -592,7 +592,7 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
             var scene: WallpaperScene? = null
             try {
                 val width = dp(164)
-                val height = dp(196)
+                val height = dp(232)
                 val render = WallpaperScene(this@MainActivity, miniature = true)
                 scene = render
                 render.settings = design.settings

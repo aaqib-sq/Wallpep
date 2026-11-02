@@ -317,6 +317,6 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
     }
 
     private companion object {
-        const val CARD_HEIGHT_DP = 196
+        const val CARD_HEIGHT_DP = 232
     }
 }

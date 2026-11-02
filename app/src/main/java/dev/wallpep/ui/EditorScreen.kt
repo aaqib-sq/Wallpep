@@ -508,6 +508,10 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         })
         interactive.add(field)
         content.addView(field, activity.full(top = 6))
+        binders.add { settings ->
+            val stored = settings.text.content
+            if (!field.hasFocus() && field.text.toString() != stored) field.setText(stored)
+        }
         page.addView(content)
 
         val typography = section("Typography")
@@ -1158,7 +1162,13 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         notice.visibility = View.VISIBLE
     }
 
-    fun invalidatePreview() = scene.invalidate()
+    /**
+     * The full-screen "Preview" switch is real: OFF freezes the scene so the wallpaper can be
+     * judged as a still, ON resumes the minute-driven redraw.
+     */
+    fun invalidatePreview() {
+        if (livePreview) scene.invalidate()
+    }
 
     private fun selectTab(next: Tab) {
         selectedTab = next
@@ -1209,7 +1219,10 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         }
         val preview = activity.accentSwitch("Preview").apply {
             isChecked = livePreview
-            setOnCheckedChangeListener { _, checked -> livePreview = checked }
+            setOnCheckedChangeListener { _, checked ->
+                livePreview = checked
+                if (checked) scene.invalidate()
+            }
         }
         bar.addView(preview)
         val buttons = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
