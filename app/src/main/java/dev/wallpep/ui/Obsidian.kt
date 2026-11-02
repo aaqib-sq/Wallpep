@@ -348,7 +348,11 @@ internal class ChipRow(val root: View, private val chips: List<TextView>) {
     fun render(selected: Int, enabled: Boolean = true) {
         chips.forEachIndexed { index, chip ->
             val on = index == selected
-            chip.background = if (on) shape(Pulse.ACCENT, 11f) else shape(Pulse.FIELD, 11f, Pulse.LINE)
+            chip.background = if (on) {
+                chip.context.shape(Pulse.ACCENT, 11f)
+            } else {
+                chip.context.shape(Pulse.FIELD, 11f, Pulse.LINE)
+            }
             chip.setTextColor(if (on) Pulse.ON_ACCENT else Pulse.TEXT)
             chip.isSelected = on
             chip.isEnabled = enabled
@@ -395,7 +399,12 @@ internal class SwatchRow(val root: View, private val swatches: List<TextView>) {
     fun render(selectedIndex: Int?) {
         swatches.forEachIndexed { index, chip ->
             val on = selectedIndex != null && index == selectedIndex
-            chip.background = shape(chip.tag as Int, 11f, if (on) Pulse.ACCENT else Pulse.LINE, if (on) 2 else 1)
+            chip.background = chip.context.shape(
+                chip.tag as Int,
+                11f,
+                if (on) Pulse.ACCENT else Pulse.LINE,
+                if (on) 2 else 1,
+            )
             chip.isSelected = on
         }
     }
@@ -493,4 +502,10 @@ internal fun Context.backButton(onClick: () -> Unit): FrameLayout = FrameLayout(
         gravity = Gravity.CENTER
     }, FrameLayout.LayoutParams(-1, -1))
     layoutParams = LinearLayout.LayoutParams(dp(38), dp(38))
+}
+
+/** A padded container for a dialog input; AlertDialog.Builder has no padded setView overload. */
+internal fun Context.dialogInput(view: View): View = FrameLayout(this).apply {
+    setPadding(dp(22), dp(8), dp(22), 0)
+    addView(view, FrameLayout.LayoutParams(-1, -2))
 }

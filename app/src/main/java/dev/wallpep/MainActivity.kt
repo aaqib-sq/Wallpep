@@ -30,6 +30,7 @@ import dev.wallpep.ui.AppShell
 import dev.wallpep.ui.EditorScreen
 import dev.wallpep.ui.HomeScreen
 import dev.wallpep.ui.SettingsScreen
+import dev.wallpep.ui.dialogInput
 import dev.wallpep.ui.dp
 import dev.wallpep.ui.textField
 import dev.wallpep.wallpaper.WallpepService
@@ -224,6 +225,7 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
         home.render(designs)
         settingsScreen.render(settings)
         editor.render(settings, currentName, favorited, photoLabel(), saving)
+        refreshThumbnails()
     }
 
     /** Short status for the pill over the live preview; nothing here is an instruction. */
@@ -303,7 +305,7 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
         input.setSelection(input.text.length)
         AlertDialog.Builder(this)
             .setTitle("Rename wallpaper")
-            .setView(input, dp(20), dp(8), dp(20), 0)
+            .setView(dialogInput(input))
             .setPositiveButton("Rename") { _, _ ->
                 lifecycleScope.launch {
                     designStore.rename(design.id, input.text.toString())

@@ -43,7 +43,6 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
     private lateinit var emptyTitle: TextView
     private lateinit var emptyBody: TextView
     private lateinit var emptyAction: View
-    private lateinit var searchHost: View
     private lateinit var emptyState: View
     private lateinit var countLabel: TextView
 
@@ -77,7 +76,7 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
             setPadding(activity.dp(18), activity.dp(2), activity.dp(18), activity.dp(10))
             clipToPadding = false
         }
-        categoryRow = activity.chipRow(Category.entries.map { it.label }, columns = Category.entries.size) { index ->
+        categoryRow = activity.chipRow(Category.entries.map { it.label }, columns = 2) { index ->
             category = Category.entries[index]
             applyFilter()
         }
@@ -145,7 +144,6 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
             contentDescription = "Search your own saved wallpapers"
         }
         row.addView(search, LinearLayout.LayoutParams(-1, -2))
-        searchHost = row
         return row
     }
 

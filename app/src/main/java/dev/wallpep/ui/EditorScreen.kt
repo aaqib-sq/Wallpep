@@ -1254,7 +1254,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         input.setSelection(input.text.length)
         AlertDialog.Builder(activity)
             .setTitle("Rename wallpaper")
-            .setView(input, activity.dp(20), activity.dp(8), activity.dp(20), 0)
+            .setView(activity.dialogInput(input))
             .setPositiveButton("Rename") { _, _ -> listener.onRename(input.text.toString()) }
             .setNegativeButton("Cancel", null)
             .show()

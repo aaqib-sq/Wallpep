@@ -45,7 +45,7 @@ class DesignStore(context: Context) {
     suspend fun upsert(design: SavedDesign) {
         store.edit { prefs ->
             val current = decode(prefs[designsKey]).filterNot { it.id == design.id }
-            prefs[designsKey] = encode((current + design.sanitized()).take(MAX_DESIGNS))
+            prefs[designsKey] = encode((current + cleaned(design)).take(MAX_DESIGNS))
         }
     }
 
@@ -66,7 +66,7 @@ class DesignStore(context: Context) {
 
     private suspend fun update(id: String, block: (SavedDesign) -> SavedDesign) {
         store.edit { prefs ->
-            val current = decode(prefs[designsKey]).map { if (it.id == id) block(it).sanitized() else it }
+            val current = decode(prefs[designsKey]).map { if (it.id == id) cleaned(block(it)) else it }
             prefs[designsKey] = encode(current)
         }
     }
@@ -129,11 +129,9 @@ class DesignStore(context: Context) {
             return trimmed.ifEmpty { "Untitled wallpaper" }
         }
 
-        fun sanitized(design: SavedDesign): SavedDesign = design.copy(
+        fun cleaned(design: SavedDesign): SavedDesign = design.copy(
             name = cleanName(design.name),
             settings = design.settings.sanitized(),
         )
     }
-
-    private fun SavedDesign.sanitized(): SavedDesign = sanitized(this)
 }
