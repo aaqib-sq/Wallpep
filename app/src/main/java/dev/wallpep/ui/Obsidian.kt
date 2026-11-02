@@ -482,7 +482,7 @@ internal fun Context.linkRow(label: String, value: String, onClick: () -> Unit):
         setOnClickListener { onClick() }
     }
     val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    column.addView(uiText(label, 13f, Pulse.TEXT, WallpepType.bodyMedium(context)))
+    column.addView(uiText(label, 13f, Pulse.TEXT, WallpepType.bodyMedium(this)))
     val detail = uiText(value, 11f, Pulse.MUTED)
     detail.visibility = if (value.isEmpty()) View.GONE else View.VISIBLE
     column.addView(detail, full(top = 2))

@@ -1183,7 +1183,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     private fun showFullscreen() {
         val overlay = if (::fullscreenOverlay.isInitialized) fullscreenOverlay else buildFullscreen()
         if (scene.parent === previewFrame) previewFrame.removeView(scene)
-        if (scene.parent == null) overlay.addView(scene, FrameLayout.LayoutParams(-1, -1), 0)
+        if (scene.parent == null) overlay.addView(scene, FrameLayout.LayoutParams(-1, -1))
         scene.settings = listener.currentSettings()
         overlay.visibility = View.VISIBLE
         overlay.bringToFront()
