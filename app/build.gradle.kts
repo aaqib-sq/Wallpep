@@ -15,8 +15,8 @@ android {
         applicationId = "dev.wallpep"
         minSdk = 33
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.0-phase2"
+        versionCode = 3
+        versionName = "2.0-obsidian"
     }
 
     compileOptions {

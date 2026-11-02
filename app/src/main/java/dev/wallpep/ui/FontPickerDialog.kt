@@ -42,12 +42,12 @@ internal object FontPickerDialog {
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(context.dp(18), context.dp(2), context.dp(18), context.dp(6))
-            setBackgroundColor(Gold.SURFACE)
+            setBackgroundColor(Pulse.SURFACE)
         }
         val countLabel = context.uiText(
             "${FontCatalog.families.size} families · bundled from Google Fonts (OFL / Apache-2.0)",
             10.5f,
-            Gold.MUTED,
+            Pulse.MUTED,
         )
         content.addView(countLabel)
 
@@ -56,16 +56,16 @@ internal object FontPickerDialog {
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT
             textSize = 14f
-            setTextColor(Gold.TEXT)
-            setHintTextColor(Gold.MUTED)
-            background = context.shape(Gold.FIELD, 12f, Gold.GOLD_BORDER)
+            setTextColor(Pulse.TEXT)
+            setHintTextColor(Pulse.MUTED)
+            background = context.shape(Pulse.FIELD, 12f, Pulse.ACCENT_BORDER)
             setPadding(context.dp(14), context.dp(10), context.dp(14), context.dp(10))
         }
         content.addView(search, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(8) })
 
         val list = ListView(context).apply {
             dividerHeight = 0
-            setBackgroundColor(Gold.SURFACE)
+            setBackgroundColor(Pulse.SURFACE)
         }
         val adapter = FamilyAdapter(context, selectedId)
         adapter.submit(extras + families)
@@ -75,7 +75,7 @@ internal object FontPickerDialog {
             .coerceIn(context.dp(200), context.dp(360))
         content.addView(list, LinearLayout.LayoutParams(-1, listHeight).apply { topMargin = context.dp(4) })
 
-        val empty = context.uiText("No bundled family matches that search.", 12f, Gold.MUTED).apply {
+        val empty = context.uiText("No bundled family matches that search.", 12f, Pulse.MUTED).apply {
             gravity = Gravity.CENTER
             visibility = View.GONE
         }
@@ -128,7 +128,7 @@ internal object FontPickerDialog {
                     setPadding(context.dp(6), context.dp(10), context.dp(6), context.dp(10))
                 }
                 val title = TextView(context).apply { includeFontPadding = true }
-                val subtitle = TextView(context).apply { textSize = 10.5f; setTextColor(Gold.MUTED); includeFontPadding = true }
+                val subtitle = TextView(context).apply { textSize = 10.5f; setTextColor(Pulse.MUTED); includeFontPadding = true }
                 layout.addView(title)
                 layout.addView(subtitle)
                 layout.tag = title to subtitle
@@ -141,7 +141,7 @@ internal object FontPickerDialog {
             val family = row.family
             title.text = row.title
             title.textSize = 19f
-            title.setTextColor(if (row.id == selectedId) Gold.GOLD else Gold.TEXT)
+            title.setTextColor(if (row.id == selectedId) Pulse.ACCENT_LIGHT else Pulse.TEXT)
             title.typeface = if (family == null) {
                 WallpepType.bodyMedium(context)
             } else {
