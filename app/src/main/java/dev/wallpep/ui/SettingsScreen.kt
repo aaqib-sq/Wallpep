@@ -42,6 +42,14 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         render(WallpaperSettings())
     }
 
+    /**
+     * One grey Obsidian card per Settings section, matching the reference grouping:
+     * a slightly lighter surface than the pure-black background, rounded corners and a
+     * subtle hairline border. Each section is added to the page with a clear gap.
+     */
+    private fun section(title: String): LinearLayout =
+        activity.sectionCard(title, fill = Pulse.SETTINGS_SURFACE)
+
     private fun buildScreen(): View {
         val column = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -60,7 +68,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         }
 
         // 1 — Preferences
-        val preferences = activity.sectionCard("Preferences", fill = Pulse.SETTINGS_SURFACE)
+        val preferences = section("Preferences")
         use24Hour = activity.switchRow(
             "Use 24-Hour Clock",
             "Off follows your device's 12/24-hour setting.",
@@ -75,7 +83,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         page.addView(preferences, activity.full(top = 14))
 
         // 2 — Wallpaper Settings
-        val wallpaper = activity.sectionCard("Wallpaper Settings", fill = Pulse.SETTINGS_SURFACE)
+        val wallpaper = section("Wallpaper Settings")
         lockscreen = activity.switchRow("Show content on lockscreen", "Wallpep draws on the lock screen when the system allows it.") { on ->
             act { it.copy(showOnLockscreen = on) }
         }
@@ -100,7 +108,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         page.addView(wallpaper, activity.full(top = 14))
 
         // 3 — Memory
-        val memory = activity.sectionCard("Memory", fill = Pulse.SETTINGS_SURFACE)
+        val memory = section("Memory")
         cacheValue = activity.uiText("", 11f, Pulse.MUTED)
         cacheValue.text = "Cutout cache · cleared on demand"
         memory.addView(cacheValue, activity.full(top = 8))
@@ -109,7 +117,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         page.addView(memory, activity.full(top = 14))
 
         // 4 — About
-        val about = activity.sectionCard("About", fill = Pulse.SETTINGS_SURFACE)
+        val about = section("About")
         about.addView(
             activity.linkRow("Privacy Policy", "Everything stays on this device") { showPrivacy() }.root,
             activity.full(top = 10),
