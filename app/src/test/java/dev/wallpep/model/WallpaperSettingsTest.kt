@@ -131,4 +131,27 @@ class WallpaperSettingsTest {
         assertEquals(FontCatalog.FOLLOW_CLOCK, s.dateFont)
         assertEquals("anton", s.font)
     }
+
+    @Test fun perLayerParallaxDefaultsKeepTheGlobalBehaviour() {
+        val defaults = WallpaperSettings()
+        assertTrue(defaults.parallaxClockEnabled)
+        assertEquals(100, defaults.parallaxClockStrength)
+        assertTrue(defaults.parallaxDateEnabled)
+        assertEquals(100, defaults.parallaxDateStrength)
+        // The global pair keeps its shipped defaults.
+        assertFalse(defaults.parallaxLayersEnabled)
+        assertEquals(40, defaults.parallaxLayersStrength)
+    }
+
+    @Test fun perLayerParallaxStrengthsAreClamped() {
+        val s = WallpaperSettings(parallaxClockStrength = 900, parallaxDateStrength = -20).sanitized()
+        assertEquals(100, s.parallaxClockStrength)
+        assertEquals(0, s.parallaxDateStrength)
+    }
+
+    @Test fun animationDefaultsAreOffWithFadeAndScaleSelected() {
+        val defaults = WallpaperSettings()
+        assertFalse(defaults.clockAnimations)
+        assertEquals(AnimationStyle.FADE_AND_SCALE, defaults.animationStyle)
+    }
 }

@@ -92,6 +92,10 @@ class WallpepService : WallpaperService() {
         private var lastTiltY = 0f
         private var particlesArmed = false
         private var secondsArmed = false
+        // Identity of the settings document the scene last received; a *new* document (first
+        // load after becoming visible, an editor save, an auto-rotate switch) is the "wallpaper
+        // applied / returned to" moment that arms an entrance transition.
+        private var lastAppliedSettings: WallpaperSettings? = null
 
         private val fallbackColors = WallpaperColors(Color.valueOf(0xff263f34.toInt()), null, null)
         @Volatile private var cachedColors: WallpaperColors = fallbackColors
@@ -108,12 +112,14 @@ class WallpepService : WallpaperService() {
             }
             val holder = surfaceHolder
             var canvas: android.graphics.Canvas? = null
+            var drewActiveTransition = false
             try {
                 if (!holder.surface.isValid) return@FrameCallback
                 canvas = holder.lockCanvas() ?: return@FrameCallback
                 // Visibility can only change on the main thread, but check again at the draw site.
                 if (running && gate.canRender && power.isInteractive && !keyguard.isKeyguardLocked) {
                     scene.draw(canvas)
+                    drewActiveTransition = scene.transitionActive
                 }
             } catch (e: IllegalArgumentException) {
                 Log.w(TAG, "Wallpaper surface became unavailable")
@@ -124,6 +130,10 @@ class WallpepService : WallpaperService() {
                     try { holder.unlockCanvasAndPost(canvas) } catch (_: IllegalArgumentException) { }
                 }
             }
+            // Entrance transitions (#150, #151) are bounded wall-timed bursts: keep vsync frames
+            // coming only while the scene reports an active transition, then the engine is idle
+            // again until its next event. No always-on animation loop exists.
+            if (drewActiveTransition) requestFrame()
         }
 
         private val minuteTick = object : Runnable {
@@ -314,6 +324,7 @@ class WallpepService : WallpaperService() {
             signalsRegistered = true
             rotationCursor = -1
             baseSettings = null
+            lastAppliedSettings = null
             collectionDesigns = emptyList()
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             activeScope = scope
@@ -397,6 +408,13 @@ class WallpepService : WallpaperService() {
             if (!running || !gate.canRender) return
             val effective = effectiveSettings()
             scene.settings = effective
+            if (effective !== lastAppliedSettings) {
+                lastAppliedSettings = effective
+                // The apply/return-to-home entrance moment. Whether an animation actually plays
+                // is the scene's decision (Enable clock animations + the selected style); this
+                // only arms it for the next drawn frame.
+                scene.playEntranceAnimation()
+            }
             if (!requestedImage || lastImageName != effective.backgroundName) {
                 requestedImage = true
                 lastImageName = effective.backgroundName
@@ -522,6 +540,7 @@ class WallpepService : WallpaperService() {
             if (!running) return
             running = false
             generation++
+            lastAppliedSettings = null
             if (framePosted) choreographer.removeFrameCallback(frameCallback)
             framePosted = false
             main.removeCallbacks(minuteTick)
