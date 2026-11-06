@@ -656,10 +656,6 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             write = { s, c -> s.copy(text = s.text.copy(secondaryColor = c ?: TextColors.MIST)) },
         )
         slider(
-            colors, "Gradient angle", 0, 360, format = { "$it°" },
-            read = { it.text.gradientAngle }, write = { s, value -> s.copy(text = s.text.copy(gradientAngle = value)) },
-        )
-        slider(
             colors, "Opacity", WallpaperSettings.MIN_OPACITY, 100, format = { String.format(Locale.ROOT, "%.1f", it.toFloat()) },
             read = { it.text.opacity }, write = { s, value -> s.copy(text = s.text.copy(opacity = value)) },
         )
