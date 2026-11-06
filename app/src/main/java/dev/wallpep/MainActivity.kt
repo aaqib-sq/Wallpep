@@ -623,6 +623,9 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
                 val height = dp(232)
                 val render = WallpaperScene(this@MainActivity, miniature = true)
                 scene = render
+                // Cards must always show the resting scene: entrance transitions (#150, #151)
+                // play in the editor preview and the applied wallpaper, never in thumbnails.
+                render.animationsEnabled = false
                 render.settings = design.settings
                 render.setImages(background, foreground)
                 render.measure(

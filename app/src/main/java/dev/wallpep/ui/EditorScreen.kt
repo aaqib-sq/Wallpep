@@ -794,6 +794,28 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
                     parallaxHost, "Parallax strength", 0, 100, format = { "$it%" },
                     read = { it.parallaxLayersStrength }, write = { s, value -> s.copy(parallaxLayersStrength = value) },
                 )
+                parallaxHost.addView(
+                    activity.uiText("The per-layer controls below refine the global switch: a layer tilts only while both are on, and its strength is a percent of the global travel.", 10.5f, Pulse.MUTED),
+                    activity.full(top = 10),
+                )
+                parallaxHost.addView(activity.uiText("CLOCK", 11f, Pulse.MUTED, WallpepType.display(activity), 0.18f), activity.full(top = 16))
+                switch(
+                    parallaxHost, "Clock parallax", "The clock layer shifts with the device tilt.",
+                    read = { it.parallaxClockEnabled }, write = { s, on -> s.copy(parallaxClockEnabled = on) },
+                )
+                addSliderTo(
+                    parallaxHost, "Clock parallax strength", 0, 100, format = { "$it%" },
+                    read = { it.parallaxClockStrength }, write = { s, value -> s.copy(parallaxClockStrength = value) },
+                )
+                parallaxHost.addView(activity.uiText("DATE", 11f, Pulse.MUTED, WallpepType.display(activity), 0.18f), activity.full(top = 16))
+                switch(
+                    parallaxHost, "Date parallax", "The date layer shifts with the device tilt.",
+                    read = { it.parallaxDateEnabled }, write = { s, on -> s.copy(parallaxDateEnabled = on) },
+                )
+                addSliderTo(
+                    parallaxHost, "Date parallax strength", 0, 100, format = { "$it%" },
+                    read = { it.parallaxDateStrength }, write = { s, value -> s.copy(parallaxDateStrength = value) },
+                )
             }
             ParallaxTab.WALLPAPER -> {
                 parallaxHost.addView(activity.uiText("WALLPAPER", 11f, Pulse.MUTED, WallpepType.display(activity), 0.18f))

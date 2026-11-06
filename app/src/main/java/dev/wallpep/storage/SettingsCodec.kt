@@ -83,6 +83,10 @@ internal object SettingsCodec {
         put("brightness", settings.brightness)
         put("parallax_layers", settings.parallaxLayersEnabled)
         put("parallax_layers_strength", settings.parallaxLayersStrength)
+        put("parallax_clock", settings.parallaxClockEnabled)
+        put("parallax_clock_strength", settings.parallaxClockStrength)
+        put("parallax_date", settings.parallaxDateEnabled)
+        put("parallax_date_strength", settings.parallaxDateStrength)
         put("parallax_wallpaper", settings.parallaxWallpaperEnabled)
         put("parallax_wallpaper_strength", settings.parallaxWallpaperStrength)
         put("effect_style", settings.effectStyle.name)
@@ -153,6 +157,11 @@ internal object SettingsCodec {
             brightness = json.optInt("brightness", defaults.brightness),
             parallaxLayersEnabled = json.optBoolean("parallax_layers", defaults.parallaxLayersEnabled),
             parallaxLayersStrength = json.optInt("parallax_layers_strength", defaults.parallaxLayersStrength),
+            // Missing per-layer keys default to on/100 %, the pre-per-layer behaviour.
+            parallaxClockEnabled = json.optBoolean("parallax_clock", defaults.parallaxClockEnabled),
+            parallaxClockStrength = json.optInt("parallax_clock_strength", defaults.parallaxClockStrength),
+            parallaxDateEnabled = json.optBoolean("parallax_date", defaults.parallaxDateEnabled),
+            parallaxDateStrength = json.optInt("parallax_date_strength", defaults.parallaxDateStrength),
             parallaxWallpaperEnabled = json.optBoolean("parallax_wallpaper", defaults.parallaxWallpaperEnabled),
             parallaxWallpaperStrength = json.optInt("parallax_wallpaper_strength", defaults.parallaxWallpaperStrength),
             effectStyle = storedEnum(json.optString("effect_style"), defaults.effectStyle),

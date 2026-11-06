@@ -10,7 +10,9 @@ import android.graphics.DashPathEffect
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.text.StaticLayout
@@ -19,6 +21,7 @@ import android.text.TextPaint
 import android.text.format.DateFormat
 import android.view.View
 import dev.wallpep.fonts.FontCatalog
+import dev.wallpep.model.AnimationStyle
 import dev.wallpep.model.ClockFormat
 import dev.wallpep.model.ClockFormats
 import dev.wallpep.model.DateFormats
@@ -58,6 +61,12 @@ import kotlin.math.tan
  * Transform fields (perspective, skews, rotation, stretch) behave identically in the editor
  * preview, the collection thumbnails and the live wallpaper. Cached layer bitmaps let the
  * particle animation and a parallax tilt redraw the scene without re-shaping any glyph.
+ *
+ * Entrance transitions (#150, #151) animate the cached clock and date bitmaps — translate,
+ * scale, rotate, alpha, blur and glitch bands — for a bounded wall-timed burst on the apply /
+ * return-to-home moment and on minute rollovers; between bursts the scene is event-driven and
+ * idle, exactly as before. Collection thumbnails set [animationsEnabled] to false so cards
+ * always show the resting scene.
  */
 class WallpaperScene(context: Context, private val miniature: Boolean = false) : View(context) {
     var settings: WallpaperSettings = WallpaperSettings()
@@ -129,6 +138,109 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         }
     }
 
+    // ---------------------------------------------------------------- entrance transitions
+
+    /**
+     * Entrance transitions (#150, #151) for the clock and date layers. Battery discipline: a
+     * transition is a bounded, wall-timed burst — it plays on the apply/return-to-home moment
+     * (the engine calls [playEntranceAnimation]) and on minute rollovers (detected in [onDraw]),
+     * needs frames only while [transitionActive], and leaves the scene event-driven afterwards.
+     * Attached views (editor preview) pump their own frames with [postOnAnimation]; the engine's
+     * detached scene is pumped by the service, which re-requests frames while [transitionActive].
+     */
+    var animationsEnabled: Boolean = true
+
+    private var transitionPending = false
+    private var transitionRunning = false
+    private var transitionStartNanos = 0L
+    private var transitionStyle = AnimationStyle.FADE_AND_SCALE
+    private var lastMinuteTick = Long.MIN_VALUE
+    private var transitionFrameQueued = false
+
+    /** True while an entrance transition still needs frames; false again once the layers rest. */
+    val transitionActive: Boolean get() = transitionPending || transitionRunning
+
+    /**
+     * Arms the selected entrance animation for the next drawn frame. No-op (and any pending arm
+     * is cleared) when animations are disabled or the stored style is NONE; a running transition
+     * is never restarted mid-flight.
+     */
+    fun playEntranceAnimation() {
+        if (!animationsAllowed()) {
+            transitionPending = false
+            return
+        }
+        if (transitionRunning) return
+        transitionPending = true
+        armTransitionFrame()
+    }
+
+    private fun animationsAllowed(): Boolean =
+        animationsEnabled && settings.clockAnimations && ClockTransitions.playable(settings.animationStyle)
+
+    /**
+     * Advances the transition state for this frame: consumes a pending entrance, auto-starts on
+     * a minute rollover, and retires the transition when its wall-time budget (including the
+     * date's stagger tail) is spent. The very first drawn minute never auto-animates.
+     */
+    private fun updateTransition(nowNanos: Long, minuteTick: Long) {
+        val minuteChanged = minuteTick != lastMinuteTick
+        if (minuteChanged) lastMinuteTick = minuteTick
+        if (transitionPending) {
+            transitionPending = false
+            if (animationsAllowed()) {
+                transitionStyle = settings.animationStyle
+                transitionStartNanos = nowNanos
+                transitionRunning = true
+            }
+        }
+        if (transitionRunning) {
+            val totalMillis = ClockTransitions.durationMillis(transitionStyle) + DATE_STAGGER_MS
+            if (nowNanos - transitionStartNanos >= totalMillis * 1_000_000L) transitionRunning = false
+        } else if (minuteChanged && animationsAllowed()) {
+            transitionStyle = settings.animationStyle
+            transitionStartNanos = nowNanos
+            transitionRunning = true
+        }
+        if (transitionRunning) armTransitionFrame()
+    }
+
+    /**
+     * The frame for one layer, or null when that layer rests. The date trails the clock by
+     * [DATE_STAGGER_MS]; during the stagger it holds its initial (hidden) state.
+     */
+    private fun transitionFrameAt(nowNanos: Long, delayMillis: Long): TransitionFrame? {
+        if (!transitionRunning) return null
+        val duration = ClockTransitions.durationMillis(transitionStyle)
+        if (duration <= 0L) return null
+        val elapsed = (nowNanos - transitionStartNanos) / 1_000_000L - delayMillis
+        if (elapsed < 0L) return ClockTransitions.frame(transitionStyle, 0f)
+        if (elapsed >= duration) return null
+        return ClockTransitions.frame(transitionStyle, elapsed.toFloat() / duration.toFloat())
+    }
+
+    /** Only attached, shown views pump themselves; the engine's scene is pumped by the service. */
+    private fun armTransitionFrame() {
+        if (transitionFrameQueued) return
+        if (!isAttachedToWindow || !isShown) return
+        transitionFrameQueued = true
+        postOnAnimation(transitionRunnable)
+    }
+
+    private val transitionRunnable = Runnable {
+        transitionFrameQueued = false
+        // Drawing restarts only through onDraw; detached or hidden views never re-arm the loop.
+        if (isAttachedToWindow && isShown && (transitionRunning || transitionPending)) invalidate()
+    }
+
+    private fun cancelTransition() {
+        transitionPending = false
+        transitionRunning = false
+        lastMinuteTick = Long.MIN_VALUE
+        transitionFrameQueued = false
+        removeCallbacks(transitionRunnable)
+    }
+
     // ---------------------------------------------------------------- particles
 
     private class Particle {
@@ -172,7 +284,11 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         invalidate()
     }
 
-    fun release() = setImages(null, null)
+    /** Releases both images and any transition state, so a hidden scene never keeps animating. */
+    fun release() {
+        setImages(null, null)
+        cancelTransition()
+    }
 
     // ---------------------------------------------------------------- colorize
 
@@ -330,19 +446,88 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         return hourLayer to minuteLayer
     }
 
-    private fun compositeLayer(canvas: Canvas, layer: LayerCache, layerShift: Pair<Float, Float>) {
+    /**
+     * Composites one cached layer at its anchor, with the parallax shift, the layer's own warp
+     * and — only while an entrance transition runs — the transition's translate/scale/rotate,
+     * alpha, blur and glitch applied on top. The transition matrix sits outside the user's
+     * Transform warp, so an animated layer keeps its saved perspective/skew/rotation.
+     */
+    private fun compositeLayer(canvas: Canvas, layer: LayerCache, layerShift: Pair<Float, Float>, transition: TransitionFrame?) {
         val prepared = layer.prepared
         // Content centre expressed in bitmap space (the space the bitmap is drawn in).
         val cx = prepared.anchorX - prepared.originX
         val cy = prepared.anchorY - prepared.originY
+        var anchorX = prepared.anchorX + layerShift.first
+        var anchorY = prepared.anchorY + layerShift.second
+        if (transition != null) {
+            anchorX += transition.dx * prepared.contentW
+            anchorY += transition.dy * prepared.contentH
+        }
         val matrix = android.graphics.Matrix()
-        matrix.setTranslate(prepared.anchorX + layerShift.first, prepared.anchorY + layerShift.second)
+        matrix.setTranslate(anchorX, anchorY)
+        if (transition != null) matrix.postConcat(transitionWarp(transition, prepared.contentW, prepared.contentH))
         matrix.postConcat(centerWarp(prepared.transform, prepared.contentW, prepared.contentH))
         matrix.postTranslate(-cx, -cy)
         val save = canvas.save()
         canvas.concat(matrix)
-        canvas.drawBitmap(layer.bitmap, 0f, 0f, compositePaint)
+        var blurSet = false
+        if (transition != null) {
+            compositePaint.alpha = (255f * transition.alpha.coerceIn(0f, 1f)).toInt()
+            val blurPx = transition.blur * prepared.contentH
+            if (blurPx > 0.6f) {
+                compositePaint.renderEffect = RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP)
+                blurSet = true
+            }
+        }
+        if (transition != null && transition.glitch > 0.01f) {
+            drawGlitched(canvas, layer.bitmap, transition)
+        } else {
+            canvas.drawBitmap(layer.bitmap, 0f, 0f, compositePaint)
+        }
+        if (blurSet) compositePaint.renderEffect = null
+        if (transition != null) compositePaint.alpha = 255
         canvas.restoreToCount(save)
+    }
+
+    /** Scale/rotation of one transition frame around its pivot, in content-centred space. */
+    private fun transitionWarp(frame: TransitionFrame, contentW: Float, contentH: Float): android.graphics.Matrix {
+        val matrix = android.graphics.Matrix()
+        matrix.setScale(frame.scaleX, frame.scaleY)
+        if (frame.rotation != 0f) matrix.postRotate(frame.rotation)
+        val px = (frame.pivotX - 0.5f) * contentW
+        val py = (frame.pivotY - 0.5f) * contentH
+        if (px != 0f || py != 0f) {
+            matrix.preTranslate(-px, -py)
+            matrix.postTranslate(px, py)
+        }
+        return matrix
+    }
+
+    /**
+     * Glitch style: the layer bitmap is drawn in horizontal bands, each offset and dimmed by a
+     * deterministic amount that decays with the transition. Only runs during the glitch burst.
+     */
+    private fun drawGlitched(canvas: Canvas, bitmap: Bitmap, frame: TransitionFrame) {
+        val bandHeight = max(1, bitmap.height / GLITCH_BANDS)
+        val intensity = frame.glitch.coerceIn(0f, 1f)
+        val baseAlpha = compositePaint.alpha
+        val src = Rect()
+        val dst = RectF()
+        var band = 0
+        var top = 0
+        while (top < bitmap.height) {
+            val bottom = min(bitmap.height, top + bandHeight)
+            src.set(0, top, bitmap.width, bottom)
+            val jitter = ClockTransitions.glitchOffset(band, frame.glitchStep)
+            val offsetX = jitter * intensity * bitmap.width * GLITCH_SLICE_FRACTION
+            val flicker = 1f - 0.4f * intensity * abs(ClockTransitions.glitchOffset(band + 97, frame.glitchStep))
+            dst.set(offsetX, top.toFloat(), bitmap.width + offsetX, bottom.toFloat())
+            compositePaint.alpha = (baseAlpha * flicker).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(bitmap, src, dst, compositePaint)
+            top = bottom
+            band++
+        }
+        compositePaint.alpha = baseAlpha
     }
 
     /** Stretch → rotation → skews → keystones, all around the layer's centre. */
@@ -399,28 +584,36 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
         val now = Date()
+        val frameNanos = System.nanoTime()
         applyColorize()
         val wallpaperShift = wallpaperShift(w, h)
-        val layerShift = layerShift(w, h)
+        // Per-layer parallax (#46, #47, #88, #89): the clock and the date each gate and scale
+        // the global layer travel; the text layer keeps the global pair (it has no own fields).
+        val clockShift = layerShiftFor(settings.parallaxClockEnabled, settings.parallaxClockStrength, w, h)
+        val dateShift = layerShiftFor(settings.parallaxDateEnabled, settings.parallaxDateStrength, w, h)
+        val textShift = layerShiftFor(true, 100, w, h)
         val destination = drawBackground(canvas, w, h, wallpaperShift)
         val foreground = foregroundBitmap?.takeUnless { it.isRecycled }
         val hasForeground = destination != null && foreground != null
         val plan = depthPlan(settings, hasForeground)
         val clockTick = if (clockNeedsSeconds()) now.time / 1000L else now.time / 60000L
         val minuteTick = now.time / 60000L
+        updateTransition(frameNanos, minuteTick)
+        val clockFrame = transitionFrameAt(frameNanos, 0L)
+        val dateFrame = transitionFrameAt(frameNanos, DATE_STAGGER_MS)
 
         if (plan.hourBefore || plan.minuteBefore) {
             val (hourPart, minutePart) = obtainClock(w, h, now, clockTick)
-            if (plan.hourBefore) hourPart?.let { compositeLayer(canvas, it, layerShift) }
-            if (plan.minuteBefore) minutePart?.let { compositeLayer(canvas, it, layerShift) }
+            if (plan.hourBefore) hourPart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+            if (plan.minuteBefore) minutePart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
         }
         if (plan.dateBefore) {
             obtainLayer(PART_DATE, minuteTick) { prepareDateLayer(w, h, now) }
-                ?.let { compositeLayer(canvas, it, layerShift) }
+                ?.let { compositeLayer(canvas, it, dateShift, dateFrame) }
         }
         if (plan.textBefore) {
             obtainLayer(PART_TEXT, minuteTick) { prepareTextLayer(w, h) }
-                ?.let { compositeLayer(canvas, it, layerShift) }
+                ?.let { compositeLayer(canvas, it, textShift, null) }
         }
         if (plan.foreground && destination != null && foreground != null) {
             val save = canvas.save()
@@ -430,16 +623,16 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         }
         if (plan.hourAfter || plan.minuteAfter) {
             val (hourPart, minutePart) = obtainClock(w, h, now, clockTick)
-            if (plan.hourAfter) hourPart?.let { compositeLayer(canvas, it, layerShift) }
-            if (plan.minuteAfter) minutePart?.let { compositeLayer(canvas, it, layerShift) }
+            if (plan.hourAfter) hourPart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+            if (plan.minuteAfter) minutePart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
         }
         if (plan.dateAfter) {
             obtainLayer(PART_DATE, minuteTick) { prepareDateLayer(w, h, now) }
-                ?.let { compositeLayer(canvas, it, layerShift) }
+                ?.let { compositeLayer(canvas, it, dateShift, dateFrame) }
         }
         if (plan.textAfter) {
             obtainLayer(PART_TEXT, minuteTick) { prepareTextLayer(w, h) }
-                ?.let { compositeLayer(canvas, it, layerShift) }
+                ?.let { compositeLayer(canvas, it, textShift, null) }
         }
         drawParticles(canvas, w, h)
     }
@@ -450,10 +643,11 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         return tiltX * strength * w * PARALLAX_FRAC_X to tiltY * strength * h * PARALLAX_FRAC_Y
     }
 
-    private fun layerShift(w: Float, h: Float): Pair<Float, Float> {
-        if (!settings.parallaxLayersEnabled) return 0f to 0f
-        val strength = settings.parallaxLayersStrength / 100f
-        return tiltX * strength * w * PARALLAX_FRAC_X to tiltY * strength * h * PARALLAX_FRAC_Y
+    /** The global layer travel gated and scaled by one layer's own parallax switch/strength. */
+    private fun layerShiftFor(layerEnabled: Boolean, layerStrength: Int, w: Float, h: Float): Pair<Float, Float> {
+        val scale = layerParallaxScale(settings.parallaxLayersEnabled, settings.parallaxLayersStrength, layerEnabled, layerStrength)
+        if (scale <= 0f) return 0f to 0f
+        return tiltX * scale * w * PARALLAX_FRAC_X to tiltY * scale * h * PARALLAX_FRAC_Y
     }
 
     private fun drawParticles(canvas: Canvas, w: Float, h: Float) {
@@ -566,6 +760,8 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         removeCallbacks(particleRunnable)
         tiltReturnQueued = false
         removeCallbacks(tiltReturnRunnable)
+        transitionFrameQueued = false
+        removeCallbacks(transitionRunnable)
         super.onDetachedFromWindow()
     }
 
@@ -1068,6 +1264,10 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         private const val FRAME_INTERVAL_MS = 33L
         private const val TILT_RETURN = 0.82f
         private const val TILT_EPSILON = 0.015f
+        /** The date trails the clock by this much during an entrance transition. */
+        private const val DATE_STAGGER_MS = 90L
+        private const val GLITCH_BANDS = 6
+        private const val GLITCH_SLICE_FRACTION = 0.05f
         private const val PART_CLOCK_HOUR = 0
         private const val PART_CLOCK_MINUTE = 1
         private const val PART_DATE = 2

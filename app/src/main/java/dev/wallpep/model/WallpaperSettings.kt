@@ -105,6 +105,14 @@ data class WallpaperSettings(
     // ---------------------------------------------------------------- parallax
     val parallaxLayersEnabled: Boolean = false,
     val parallaxLayersStrength: Int = 40,
+    // Per-layer refinements of the global "Clock, Date & Text" parallax: a layer moves only
+    // when the global switch and its own switch are on, and its strength is a percent of the
+    // global travel. Defaults (on, 100) reproduce the pre-per-layer behaviour exactly, so
+    // documents saved before these keys existed render unchanged.
+    val parallaxClockEnabled: Boolean = true,
+    val parallaxClockStrength: Int = 100,
+    val parallaxDateEnabled: Boolean = true,
+    val parallaxDateStrength: Int = 100,
     val parallaxWallpaperEnabled: Boolean = false,
     val parallaxWallpaperStrength: Int = 25,
     // ---------------------------------------------------------------- effects
@@ -170,6 +178,8 @@ data class WallpaperSettings(
         grayscale = grayscale.coerceIn(0, 100),
         brightness = brightness.coerceIn(0, 200),
         parallaxLayersStrength = parallaxLayersStrength.coerceIn(0, 100),
+        parallaxClockStrength = parallaxClockStrength.coerceIn(0, 100),
+        parallaxDateStrength = parallaxDateStrength.coerceIn(0, 100),
         parallaxWallpaperStrength = parallaxWallpaperStrength.coerceIn(0, 100),
         autoRotateIntervalHours = autoRotateIntervalHours.coerceIn(0, MAX_ROTATE_INTERVAL_HOURS),
         effectSpeed = effectSpeed.coerceIn(MIN_EFFECT_SPEED, MAX_EFFECT_SPEED),
