@@ -134,11 +134,13 @@ internal object SettingsCodec {
             dateGradientEnabled = json.optBoolean("date_gradient", defaults.dateGradientEnabled),
             dateGradientAngle = json.optInt("date_gradient_angle", defaults.dateGradientAngle),
             dateSizeSp = json.optInt("date_size_sp", defaults.dateSizeSp),
-            dateLetterSpacing = json.optInt("date_letter_spacing", defaults.dateLetterSpacing),
+            // Pre-parity documents without this key used zero spacing.
+            dateLetterSpacing = json.optInt("date_letter_spacing", 0),
             dateAlign = storedEnum(json.optString("date_align"), defaults.dateAlign),
             dateOpacity = json.optInt("date_opacity", defaults.dateOpacity),
             datePositionX = json.optInt("date_position_x", defaults.datePositionX),
-            datePositionY = json.optInt("date_position_y", defaults.datePositionY),
+            // Preserve Phase 1 documents lacking the newer date position field.
+            datePositionY = json.optDouble("date_position_y", 38.0).toFloat(),
             dateOverForeground = json.optBoolean("date_over_foreground", defaults.dateOverForeground),
             dateStroke = strokeFromJson(json.optJSONObject("date_stroke"), defaults.dateStroke),
             dateShadow = shadowFromJson(json.optJSONObject("date_shadow"), defaults.dateShadow),

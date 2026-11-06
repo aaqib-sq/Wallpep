@@ -14,6 +14,7 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import dev.wallpep.R
 import dev.wallpep.fonts.FontCatalog
+import dev.wallpep.fonts.FontStyles
 import dev.wallpep.model.ClockFormats
 import dev.wallpep.model.DateFormats
 import dev.wallpep.model.EffectStyle
@@ -27,6 +28,7 @@ import dev.wallpep.model.TransformSettings
 import dev.wallpep.model.WallpaperSettings
 import dev.wallpep.render.WallpaperScene
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * The Obsidian Pulse editor: the exact seven tabs from the granted structure file
@@ -75,8 +77,14 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     // their contents when their layer/sub-tab changes, so they use sinks that are cleared first.
     private val staticInteractive = mutableListOf<View>()
     private val staticBinders = mutableListOf<(WallpaperSettings) -> Unit>()
-    private val dynamicInteractive = mutableListOf<View>()
-    private val dynamicBinders = mutableListOf<(WallpaperSettings) -> Unit>()
+    private class DynamicSinks {
+        val interactive = mutableListOf<View>()
+        val binders = mutableListOf<(WallpaperSettings) -> Unit>()
+    }
+    // Each independently rebuilt host keeps its own binders and enabled-state views.
+    private val transformSinks = DynamicSinks()
+    private val parallaxSinks = DynamicSinks()
+    private val dynamicSinks = listOf(transformSinks, parallaxSinks)
     private var interactive: MutableList<View> = staticInteractive
     private var binders: MutableList<(WallpaperSettings) -> Unit> = staticBinders
 
@@ -411,7 +419,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             format,
             ClockFormats.all.map { it.label },
             columns = 3,
-            read = { s -> ClockFormats.all.indexOfFirst { it.id == s.clockFormat }.coerceAtLeast(0) },
+            read = { s -> ClockFormats.all.indexOfFirst { it.id == s.clockFormat } },
             write = { s, index -> s.copy(clockFormat = ClockFormats.all[index].id) },
         )
         clockSections = emptyMap()
@@ -424,7 +432,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
 
         val typography = section("Typography")
         faceCards(typography, CLOCK_FACES, read = { it.font }, write = { s, id -> s.copy(font = id) })
-        browseRow(typography, allowFollowClock = false, read = { it.font }, write = { s, id -> s.copy(font = id) })
+        browseRow(typography, title = "Clock", allowFollowClock = false, read = { it.font }, write = { s, id -> s.copy(font = id) })
         slider(
             typography, "Font size", WallpaperSettings.MIN_CLOCK_SIZE, WallpaperSettings.MAX_CLOCK_SIZE,
             format = { "$it sp" },
@@ -524,7 +532,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
 
         val typography = section("Typography")
         faceCards(typography, DATE_FACES, read = { it.dateFont }, write = { s, id -> s.copy(dateFont = id) })
-        browseRow(typography, allowFollowClock = true, read = { it.dateFont }, write = { s, id -> s.copy(dateFont = id) })
+        browseRow(typography, title = "Date", allowFollowClock = true, read = { it.dateFont }, write = { s, id -> s.copy(dateFont = id) })
         slider(
             typography, "Font size", WallpaperSettings.MIN_DATE_SIZE, WallpaperSettings.MAX_DATE_SIZE,
             format = { "$it sp" },
@@ -564,8 +572,8 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             read = { it.datePositionX }, write = { s, value -> s.copy(datePositionX = value) },
         )
         slider(
-            position, "Vertical Position", 0, 100, format = { "$it%" },
-            read = { it.datePositionY }, write = { s, value -> s.copy(datePositionY = value) },
+            position, "Vertical Position", 0, 1000, format = { String.format(Locale.ROOT, "%.1f%%", it / 10f) },
+            read = { (it.datePositionY * 10).roundToInt() }, write = { s, value -> s.copy(datePositionY = value / 10f) },
         )
         switch(
             position, "Show Over Foreground",
@@ -619,7 +627,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
 
         val typography = section("Typography")
         faceCards(typography, TEXT_FACES, read = { it.text.font }, write = { s, id -> s.copy(text = s.text.copy(font = id)) })
-        browseRow(typography, allowFollowClock = false, read = { it.text.font }, write = { s, id -> s.copy(text = s.text.copy(font = id)) })
+        browseRow(typography, title = "Text", allowFollowClock = false, read = { it.text.font }, write = { s, id -> s.copy(text = s.text.copy(font = id)) })
         slider(
             typography, "Font size", TextLayerSettings.MIN_SIZE, TextLayerSettings.MAX_SIZE,
             format = { "$it sp" },
@@ -701,14 +709,14 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         val picker = section("Layer", "Transform applies to one layer at a time.")
         transformLayerRow = activity.chipRow(TransformLayer.entries.map { it.label }, columns = 3) { index ->
             selectedTransformLayer = TransformLayer.entries[index]
-            useDynamicSinks { renderTransformLayer() }
+            useDynamicSinks(transformSinks) { renderTransformLayer() }
         }
         picker.addView(transformLayerRow.root)
         page.addView(picker)
 
         transformHost = activity.card()
         page.addView(transformHost, activity.full(top = 14))
-        useDynamicSinks { renderTransformLayer() }
+        useDynamicSinks(transformSinks) { renderTransformLayer() }
         return page
     }
 
@@ -768,14 +776,14 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         val picker = section("Parallax", "Choose what tilts with the device.")
         parallaxTabRow = activity.chipRow(ParallaxTab.entries.map { it.label }, columns = 2) { index ->
             selectedParallaxTab = ParallaxTab.entries[index]
-            useDynamicSinks { renderParallaxTab() }
+            useDynamicSinks(parallaxSinks) { renderParallaxTab() }
         }
         picker.addView(parallaxTabRow.root)
         page.addView(picker)
 
         parallaxHost = activity.card()
         page.addView(parallaxHost, activity.full(top = 14))
-        useDynamicSinks { renderParallaxTab() }
+        useDynamicSinks(parallaxSinks) { renderParallaxTab() }
         return page
     }
 
@@ -1016,11 +1024,11 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     // ---------------------------------------------------------------- control plumbing
 
     /** Rebuilds a host's controls with fresh sinks, so switching layers cannot stack binders. */
-    private fun useDynamicSinks(rebuild: () -> Unit) {
-        dynamicBinders.clear()
-        dynamicInteractive.clear()
-        interactive = dynamicInteractive
-        binders = dynamicBinders
+    private fun useDynamicSinks(sinks: DynamicSinks, rebuild: () -> Unit) {
+        sinks.binders.clear()
+        sinks.interactive.clear()
+        interactive = sinks.interactive
+        binders = sinks.binders
         try {
             rebuild()
         } finally {
@@ -1031,7 +1039,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
 
     private fun renderDynamic() {
         val settings = listener.currentSettings()
-        dynamicBinders.forEach { binder -> binder(settings) }
+        dynamicSinks.forEach { sinks -> sinks.binders.forEach { binder -> binder(settings) } }
     }
 
     private fun page(): LinearLayout = LinearLayout(activity).apply {
@@ -1224,6 +1232,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     /** Entry to the full bundled picker, showing which face is currently in use. */
     private fun browseRow(
         parent: LinearLayout,
+        title: String,
         allowFollowClock: Boolean,
         read: (WallpaperSettings) -> String,
         write: (WallpaperSettings, String) -> WallpaperSettings,
@@ -1235,16 +1244,16 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             background = activity.shape(Pulse.FIELD, 13f, Pulse.LINE)
             isClickable = true
             isFocusable = true
-            contentDescription = "Browse all ${FontCatalog.families.size} bundled typefaces"
+            contentDescription = "Browse all ${FontStyles.all.size} bundled faces"
             setOnClickListener {
                 val current = read(listener.currentSettings())
-                FontPickerDialog.show(activity, allowFollowClock = allowFollowClock, selectedId = current) { id ->
+                FontPickerDialog.show(activity, title = title, allowFollowClock = allowFollowClock, selectedId = current) { id ->
                     act { s -> write(s, id) }
                 }
             }
         }
         val column = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        column.addView(activity.uiText("All ${FontCatalog.families.size} families", 13f, Pulse.TEXT, WallpepType.bodyMedium(activity)))
+        column.addView(activity.uiText("All ${FontStyles.all.size} faces", 13f, Pulse.TEXT, WallpepType.bodyMedium(activity)))
         val current = activity.uiText("", 10f, Pulse.MUTED)
         column.addView(current, activity.full(top = 2))
         row.addView(column, LinearLayout.LayoutParams(0, -2, 1f))
@@ -1267,7 +1276,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     fun render(settings: WallpaperSettings, name: String, favorited: Boolean, photoLabel: String, saving: Boolean) {
         scene.settings = settings
         staticBinders.forEach { binder -> binder(settings) }
-        dynamicBinders.forEach { binder -> binder(settings) }
+        dynamicSinks.forEach { sinks -> sinks.binders.forEach { binder -> binder(settings) } }
         nameLabel.text = name
         photoStatus.text = photoLabel
         favoriteButton.text = if (favorited) "♥" else "♡"
@@ -1279,7 +1288,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         removePhoto.isEnabled = canRemove
         removePhoto.alpha = if (canRemove) 1f else 0.45f
         staticInteractive.forEach { view -> view.isEnabled = listener.canInteract() }
-        dynamicInteractive.forEach { view -> view.isEnabled = listener.canInteract() }
+        dynamicSinks.forEach { sinks -> sinks.interactive.forEach { view -> view.isEnabled = listener.canInteract() } }
     }
 
     fun showNotice(message: String) {

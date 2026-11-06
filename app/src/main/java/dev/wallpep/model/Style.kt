@@ -176,6 +176,8 @@ data class ClockFormat(
     val label: String,
     val separator: String = ":",
     val withSeconds: Boolean = false,
+    // The separator preceding seconds is independent of the hour/minute separator.
+    val secondsSeparator: String = " ",
     val stacked: Boolean = false,
     val padHour: Boolean = true,
 )
@@ -191,7 +193,7 @@ object ClockFormats {
         ClockFormat("hh.mm", "hh.mm", separator = "."),
         ClockFormat("hh/mm", "hh/mm", separator = "/", stacked = true),
         ClockFormat("hh_mm_ss", "hh mm ss", separator = " ", withSeconds = true),
-        ClockFormat("hhmmss", "hhmmss", separator = "", withSeconds = true),
+        ClockFormat("hhmmss", "hhmmss", separator = "", withSeconds = true, secondsSeparator = ""),
         ClockFormat("hh:mm_ss", "hh:mm ss", separator = ":", withSeconds = true),
         ClockFormat("hh.mm_ss", "hh.mm ss", separator = ".", withSeconds = true),
         ClockFormat("h:mm", "h:mm", separator = ":", padHour = false),

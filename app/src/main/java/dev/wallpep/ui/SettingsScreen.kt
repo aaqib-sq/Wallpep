@@ -168,7 +168,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
 
     fun render(settings: WallpaperSettings) {
         val enabled = listener.canInteract()
-        use24Hour.render(settings.timeStyle == TimeStyle.TWENTY_FOUR_HOUR, enabled)
+        use24Hour.render(settings.timeStyle.uses24Hour(android.text.format.DateFormat.is24HourFormat(activity)), enabled)
         lockscreen.render(settings.showOnLockscreen, enabled)
         homescreen.render(settings.showOnHomescreen, enabled)
         battery.render(settings.batteryWhileCharging, enabled)
@@ -210,7 +210,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         AlertDialog.Builder(activity)
             .setTitle("Animation Style")
             .setSingleChoiceItems(labels, styles.indexOf(current)) { dialog, which ->
-                act { it.copy(animationStyle = styles[which], clockAnimations = true) }
+                act { it.copy(animationStyle = styles[which]) }
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)

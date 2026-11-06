@@ -14,6 +14,7 @@ import android.widget.TextView
 import androidx.core.widget.doAfterTextChanged
 import dev.wallpep.fonts.FontCatalog
 import dev.wallpep.fonts.FontFamily
+import dev.wallpep.fonts.FontStyles
 
 /**
  * Searchable picker over the bundled library. Each row is drawn in its own family so the
@@ -28,15 +29,16 @@ internal object FontPickerDialog {
         val family: FontFamily?,
     )
 
-    fun show(context: Context, allowFollowClock: Boolean, selectedId: String, onSelected: (String) -> Unit) {
+    fun show(context: Context, title: String, allowFollowClock: Boolean, selectedId: String, onSelected: (String) -> Unit) {
         val extras = buildList {
             if (allowFollowClock) {
                 add(Row(FontCatalog.FOLLOW_CLOCK, "Same as clock", "Reuse the clock typeface", null))
             }
             add(Row(FontCatalog.SYSTEM_ID, "System sans", "The device's own sans face", null))
         }
-        val families = FontCatalog.families.map { family ->
-            Row(family.id, family.label, "${family.category.label} · ${family.styleLabel} · ${family.license.label}", family)
+        val families = FontStyles.all.map { style ->
+            val family = style.family
+            Row(style.id, style.label, "${family.category.label} · ${family.license.label}", family)
         }
 
         val content = LinearLayout(context).apply {
@@ -45,7 +47,7 @@ internal object FontPickerDialog {
             setBackgroundColor(Pulse.SURFACE)
         }
         val countLabel = context.uiText(
-            "${FontCatalog.families.size} families · bundled from Google Fonts (OFL / Apache-2.0)",
+            "${FontStyles.all.size} faces · ${FontCatalog.families.size} families · OFL / Apache-2.0",
             10.5f,
             Pulse.MUTED,
         )
@@ -75,14 +77,14 @@ internal object FontPickerDialog {
             .coerceIn(context.dp(200), context.dp(360))
         content.addView(list, LinearLayout.LayoutParams(-1, listHeight).apply { topMargin = context.dp(4) })
 
-        val empty = context.uiText("No bundled family matches that search.", 12f, Pulse.MUTED).apply {
+        val empty = context.uiText("No bundled face matches that search.", 12f, Pulse.MUTED).apply {
             gravity = Gravity.CENTER
             visibility = View.GONE
         }
         content.addView(empty, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(8) })
 
         val dialog = AlertDialog.Builder(context)
-            .setTitle(if (allowFollowClock) "Date typeface" else "Clock typeface")
+            .setTitle("$title typeface")
             .setView(content)
             .setNegativeButton("Close", null)
             .create()
@@ -145,7 +147,7 @@ internal object FontPickerDialog {
             title.typeface = if (family == null) {
                 WallpepType.bodyMedium(context)
             } else {
-                FaceCache.get(context, family.id)
+                FaceCache.get(context, row.id)
             }
             subtitle.text = row.subtitle
             return holder

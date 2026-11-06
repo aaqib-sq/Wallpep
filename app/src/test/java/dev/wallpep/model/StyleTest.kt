@@ -39,6 +39,13 @@ class StyleTest {
         }
     }
 
+    @Test fun secondsSeparatorIsIndependentOfTheHourMinuteSeparator() {
+        assertEquals("", ClockFormats.format("hhmmss")?.secondsSeparator)
+        assertEquals(" ", ClockFormats.format("hh:mm_ss")?.secondsSeparator)
+        assertEquals(":", ClockFormats.format("hh:mm_ss")?.separator)
+        assertEquals(" ", ClockFormats.format("hh_mm_ss")?.secondsSeparator)
+    }
+
     @Test fun everyDateFormatIsAValidJvmPattern() {
         val date = Date(0L)
         DateFormats.all.forEach { format ->

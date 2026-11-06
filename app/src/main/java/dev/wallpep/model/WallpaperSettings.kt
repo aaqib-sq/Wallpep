@@ -5,7 +5,13 @@ import dev.wallpep.fonts.FontCatalog
 const val SETTINGS_SCHEMA_VERSION = 1
 
 /** Names are persisted, so new values should be added rather than renaming old ones. */
-enum class TimeStyle { SYSTEM, TWELVE_HOUR, TWENTY_FOUR_HOUR }
+enum class TimeStyle { SYSTEM, TWELVE_HOUR, TWENTY_FOUR_HOUR;
+    fun uses24Hour(systemUses24Hour: Boolean): Boolean = when (this) {
+        SYSTEM -> systemUses24Hour
+        TWELVE_HOUR -> false
+        TWENTY_FOUR_HOUR -> true
+    }
+}
 
 /**
  * Convenient starting colours. Custom colours are stored as unrestricted ARGB integers.
@@ -79,12 +85,12 @@ data class WallpaperSettings(
     val dateGradientEnabled: Boolean = false,
     val dateGradientAngle: Int = 90,
     val dateSizeSp: Int = 17,
-    val dateLetterSpacing: Int = 0,
+    val dateLetterSpacing: Int = 7,
     val dateAlign: TextAlignment = TextAlignment.CENTER,
     val dateOpacity: Int = 100,
     val dateUppercase: Boolean = false,
     val datePositionX: Int = 50,
-    val datePositionY: Int = 38,
+    val datePositionY: Float = 14.4f,
     val dateStroke: StrokeSettings = StrokeSettings(),
     val dateShadow: ShadowSettings = ShadowSettings(),
     val dateTransform: TransformSettings = TransformSettings(),
@@ -153,7 +159,7 @@ data class WallpaperSettings(
         dateLetterSpacing = dateLetterSpacing.coerceIn(0, MAX_LETTER_SPACING),
         dateOpacity = dateOpacity.coerceIn(MIN_OPACITY, 100),
         datePositionX = datePositionX.coerceIn(0, 100),
-        datePositionY = datePositionY.coerceIn(0, 100),
+        datePositionY = if (datePositionY.isFinite()) datePositionY.coerceIn(0f, 100f) else 14.4f,
         dateStroke = dateStroke.sanitized(),
         dateShadow = dateShadow.sanitized(),
         dateTransform = dateTransform.sanitized(),
