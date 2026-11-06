@@ -97,6 +97,7 @@ internal object SettingsCodec {
         put("battery_while_charging", settings.batteryWhileCharging)
         put("clock_animations", settings.clockAnimations)
         put("animation_style", settings.animationStyle.name)
+        put("auto_rotate_interval_hours", settings.autoRotateIntervalHours)
         settings.backgroundName?.let { put("background_file", it) }
     }
 
@@ -164,6 +165,7 @@ internal object SettingsCodec {
             batteryWhileCharging = json.optBoolean("battery_while_charging", defaults.batteryWhileCharging),
             clockAnimations = json.optBoolean("clock_animations", defaults.clockAnimations),
             animationStyle = storedEnum(json.optString("animation_style"), defaults.animationStyle),
+            autoRotateIntervalHours = json.optInt("auto_rotate_interval_hours", defaults.autoRotateIntervalHours),
             backgroundName = if (json.has("background_file")) json.optString("background_file") else null,
         ).sanitized()
     }
@@ -251,6 +253,7 @@ internal object SettingsCodec {
         put("color", text.color)
         put("secondary_color", text.secondaryColor)
         put("gradient", text.gradientEnabled)
+        put("gradient_angle", text.gradientAngle)
         put("opacity", text.opacity)
         put("position_x", text.positionX)
         put("position_y", text.positionY)
@@ -271,6 +274,7 @@ internal object SettingsCodec {
             color = json.optInt("color", fallback.color),
             secondaryColor = json.optInt("secondary_color", fallback.secondaryColor),
             gradientEnabled = json.optBoolean("gradient", fallback.gradientEnabled),
+            gradientAngle = json.optInt("gradient_angle", fallback.gradientAngle),
             opacity = json.optInt("opacity", fallback.opacity),
             positionX = json.optInt("position_x", fallback.positionX),
             positionY = json.optInt("position_y", fallback.positionY),
