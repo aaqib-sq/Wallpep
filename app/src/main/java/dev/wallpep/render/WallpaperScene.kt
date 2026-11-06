@@ -2,6 +2,7 @@ package dev.wallpep.render
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorMatrix
@@ -12,7 +13,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
-import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.text.StaticLayout
@@ -475,9 +475,11 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
             compositePaint.alpha = (255f * transition.alpha.coerceIn(0f, 1f)).toInt()
             val blurPx = transition.blur * prepared.contentH
             if (blurPx > 0.6f) {
-                // Paint has no renderEffect getter, so the synthetic Kotlin property does not
-                // exist; call the API 31+ setter directly (minSdk is 33).
-                compositePaint.setRenderEffect(RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP))
+                // Paint has no RenderEffect API (that lives on View/RenderNode); the supported
+                // per-paint blur is BlurMaskFilter, which softens the layer's alpha mask and is
+                // hardware-canvas capable since API 28 (minSdk is 33). Blur In degrades to the
+                // alpha/scale ramp on any canvas that ignores mask filters — never a crash.
+                compositePaint.maskFilter = BlurMaskFilter(blurPx, BlurMaskFilter.Blur.NORMAL)
                 blurSet = true
             }
         }
@@ -486,7 +488,7 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         } else {
             canvas.drawBitmap(layer.bitmap, 0f, 0f, compositePaint)
         }
-        if (blurSet) compositePaint.setRenderEffect(null)
+        if (blurSet) compositePaint.maskFilter = null
         if (transition != null) compositePaint.alpha = 255
         canvas.restoreToCount(save)
     }

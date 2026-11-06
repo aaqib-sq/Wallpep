@@ -59,7 +59,8 @@ verification notes stand as recorded in the previous revision of this document. 
   Horizontal/Vertical — as `TransitionFrame` values (alpha, scale, translate, rotation, pivot,
   blur, glitch intensity) over wall-clock progress. `WallpaperScene` applies them to the cached
   clock (hour + minute) and date layer bitmaps during compositing: the transition matrix sits
-  outside the user's Transform warp, Blur In uses `Paint.setRenderEffect` (API 31+; minSdk 33),
+  outside the user's Transform warp, Blur In uses a `BlurMaskFilter` on the composite paint
+  (hardware-canvas capable; it degrades to the alpha/scale ramp where mask filters are ignored),
   Glitch slices the layer into deterministic jittered bands. The date trails the clock by 90 ms.
 - **Play moments:** (a) *wallpaper apply / return-to-home* — `WallpepService` arms the entrance
   whenever a visible engine receives a **new** effective settings document (first load after
@@ -150,7 +151,7 @@ stays 1 and every key is additive:
 3. **`render/WallpaperScene.kt`.** The transition state machine (`playEntranceAnimation`,
    minute-rollover auto-start, `transitionActive`, bounded self-pumping for attached views,
    cancellation in `release()`/detach), per-part frames in `compositeLayer` (translate/scale/
-   rotate around per-style pivots outside the user warp, alpha, `RenderEffect` blur, glitch
+   rotate around per-style pivots outside the user warp, alpha, `BlurMaskFilter` blur, glitch
    bands), and per-layer clock/date/text parallax shifts.
 4. **`wallpaper/WallpepService.kt`.** Arms the entrance on a new effective settings document
    (`lastAppliedSettings` identity, reset on start/stop) and re-requests frames after a draw
