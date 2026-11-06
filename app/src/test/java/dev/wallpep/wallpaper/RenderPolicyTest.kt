@@ -32,17 +32,17 @@ class RenderPolicyTest {
         assertFalse(preview.canRender)
     }
 
-    @Test fun screenOffLockedAndLockOnlyTargetsNeverRender() {
+    @Test fun screenOffStopsRenderingButALockedDeviceKeepsDrawing() {
         val gate = RenderGate().apply { visible = true; surfaceAvailable = true; width = 10; height = 20 }
         gate.screenAwake = false
         assertFalse(gate.canRender)
         gate.screenAwake = true
+        assertTrue(gate.canRender)
+        // The lock screen is a surface Wallpep renders on (#145): a locked device keeps
+        // drawing, and the keyguard state only chooses which content that surface shows.
         gate.unlocked = false
-        assertFalse(gate.canRender)
+        assertTrue(gate.canRender)
         gate.unlocked = true
-        gate.lockOnly = true
-        assertFalse(gate.canRender)
-        gate.lockOnly = false
         assertTrue(gate.canRender)
     }
 

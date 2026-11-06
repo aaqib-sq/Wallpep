@@ -205,6 +205,9 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
         super.onResume()
         previewVisible = true
         editor.invalidatePreview()
+        // The editor's battery subscription (#147) lives only while the app is in the
+        // foreground; the feed is public-API only and needs no permission.
+        editor.startBatteryFeed()
         main.removeCallbacks(previewTick)
         main.postDelayed(
             previewTick,
@@ -216,6 +219,7 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
     override fun onPause() {
         previewVisible = false
         main.removeCallbacks(previewTick)
+        editor.release()
         super.onPause()
     }
 
