@@ -206,8 +206,16 @@ stays 1 and every key is additive:
    switch in the Clock tab, the live battery feed behind the preview, and the explanatory note.
 9. **`MainActivity.kt`.** The editor's battery feed starts with the app's foreground and stops
    when it leaves.
-10. **Tests.** `BatteryElementTest`, `SurfacePolicyTest`, `SettingsCodecTest` (new) and
+10. **`storage/SettingsDocument.kt` (new).** The document's key names and its missing-key rule,
+    with no Android types, so the writer and the reader cannot drift apart and the schema can
+    be pinned by an ordinary JVM test.
+11. **Tests.** `BatteryElementTest`, `SurfacePolicyTest`, `SettingsCodecTest` (new) and
     additions to `RenderPolicyTest` and `WallpaperSettingsTest`.
+
+The settings tests follow the repository's existing pattern: the document is written and read
+with `org.json`, whose Android stub cannot run in a local JVM unit test, so the tests pin the
+**pure** parts — the key names and the rule that a document predating a key keeps the shipped
+default — rather than the JSON round trip. No test dependency was added for this.
 
 ## Constraints re-checked
 
