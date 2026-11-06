@@ -208,7 +208,7 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         imagePaint.colorFilter = ColorMatrixColorFilter(matrix)
         fillPaint.colorFilter = ColorMatrixColorFilter(matrix)
         val combined = ColorMatrix()
-        combined.setValues(FOREGROUND_DARKEN)
+        combined.set(FOREGROUND_DARKEN)
         combined.postConcat(matrix)
         foregroundPaint.colorFilter = ColorMatrixColorFilter(combined)
     }
