@@ -631,8 +631,7 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         )
     }
 
-    private fun withAlpha(color: Int, alpha: Int): Int =
-        Color.argb(alpha.coerceIn(0, 255), Color.red(color), Color.green(color), Color.blue(color))
+    private fun withAlpha(color: Int, alpha: Int): Int = multiplyColorAlpha(color, alpha)
 
     /** Layer colour and its drop shadow, both scaled by the layer's opacity percent. */
     private fun ink(
@@ -657,12 +656,13 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
             paint.color = withAlpha(color, alpha)
         }
         if (shadow.enabled) {
-            val shadowAlpha = (255f * shadow.opacity.coerceIn(0, 100) / 100f).toInt()
+            val shadowAlpha = (alpha * shadow.opacity.coerceIn(0, 100) / 100f).toInt()
             val sx = (if (shadow.flipH) -shadow.offsetX else shadow.offsetX) * unit
             val sy = (if (shadow.flipV) -shadow.offsetY else shadow.offsetY) * unit
             paint.setShadowLayer(max(0.1f, shadow.blur * unit), sx, sy, withAlpha(shadow.color, shadowAlpha))
         } else {
-            val fallback = (0x99 * alpha / 255).coerceIn(0, 255)
+            val colorAlpha = if (gradient) max(Color.alpha(color), Color.alpha(secondary)) else Color.alpha(color)
+            val fallback = (0x99 * alpha * colorAlpha / (255 * 255)).coerceIn(0, 255)
             paint.setShadowLayer(fallbackRadius, 0f, fallbackDy, fallback shl 24)
         }
     }
@@ -1023,7 +1023,7 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         var secondsStart = -1
         var secondsEnd = -1
         if (format.withSeconds) {
-            builder.append(' ')
+            builder.append(format.secondsSeparator)
             secondsStart = builder.length
             builder.append(SimpleDateFormat("ss", locale).format(now))
             secondsEnd = builder.length

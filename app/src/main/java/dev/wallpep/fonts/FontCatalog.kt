@@ -169,9 +169,9 @@ object FontCatalog {
 
     private val byId: Map<String, FontFamily> = families.associateBy { it.id }
 
-    fun family(id: String?): FontFamily? = id?.let(byId::get)
+    fun family(id: String?): FontFamily? = id?.let(byId::get) ?: FontStyles.find(id)?.family
 
-    fun assetPath(id: String?): String? = family(id)?.assetPath
+    fun assetPath(id: String?): String? = FontStyles.find(id)?.assetPath ?: family(id)?.assetPath
 
     /** The license text shipped beside a family's files, so it travels inside the APK. */
     fun licenseAssetPath(id: String?): String? = family(id)?.licenseAssetPath
@@ -180,7 +180,7 @@ object FontCatalog {
         null -> "—"
         SYSTEM_ID -> "System sans"
         FOLLOW_CLOCK -> "Same as clock"
-        else -> family(id)?.label ?: family(DEFAULT_ID)?.label.orEmpty()
+        else -> FontStyles.find(id)?.takeIf { it.id.contains("@") }?.label ?: family(id)?.label ?: family(DEFAULT_ID)?.label.orEmpty()
     }
 
     /** Accepts only bundled ids plus the two sentinels; anything else falls back to Outfit. */
@@ -198,7 +198,9 @@ object FontCatalog {
             "DM_SANS" -> return "dmsans"
             "SYSTEM" -> return SYSTEM_ID
         }
-        val candidate = value.trim().lowercase(Locale.ROOT).replace("-", "").replace("_", "")
+        val styleId = value.trim().lowercase(Locale.ROOT)
+        FontStyles.find(styleId)?.let { return it.id }
+        val candidate = styleId.replace("-", "").replace("_", "")
         return candidate.takeIf { it == SYSTEM_ID || byId.containsKey(it) }
     }
 

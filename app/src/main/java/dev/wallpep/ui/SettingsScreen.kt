@@ -72,9 +72,9 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         val preferences = section("Preferences")
         use24Hour = activity.switchRow(
             "Use 24-Hour Clock",
-            "Off follows your device's 12/24-hour setting.",
+            "Off uses 12-hour time; on uses 24-hour time.",
         ) { on ->
-            act { it.copy(timeStyle = if (on) TimeStyle.TWENTY_FOUR_HOUR else TimeStyle.SYSTEM) }
+            act { it.copy(timeStyle = if (on) TimeStyle.TWENTY_FOUR_HOUR else TimeStyle.TWELVE_HOUR) }
         }
         preferences.addView(use24Hour.root, activity.full(top = 10))
         preferences.addView(
@@ -168,7 +168,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
 
     fun render(settings: WallpaperSettings) {
         val enabled = listener.canInteract()
-        use24Hour.render(settings.timeStyle == TimeStyle.TWENTY_FOUR_HOUR, enabled)
+        use24Hour.render(settings.timeStyle.uses24Hour(android.text.format.DateFormat.is24HourFormat(activity)), enabled)
         lockscreen.render(settings.showOnLockscreen, enabled)
         homescreen.render(settings.showOnHomescreen, enabled)
         battery.render(settings.batteryWhileCharging, enabled)
@@ -204,13 +204,13 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
     }
 
     private fun showAnimationStyles() {
-        val styles = AnimationStyle.entries
+        val styles = AnimationStyle.entries.filter { it.selectable }
         val labels = styles.map { it.label }.toTypedArray()
         val current = listener.currentSettings().animationStyle
         AlertDialog.Builder(activity)
             .setTitle("Animation Style")
             .setSingleChoiceItems(labels, styles.indexOf(current)) { dialog, which ->
-                act { it.copy(animationStyle = styles[which], clockAnimations = true) }
+                act { it.copy(animationStyle = styles[which]) }
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)

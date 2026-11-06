@@ -71,6 +71,24 @@ class FontCatalogTest {
         assertTrue(FontCatalog.search("zzzz").isEmpty())
     }
 
+    @Test fun everyBundledFileIsSelectableWithAStableSafeId() {
+        val faces = FontStyles.all
+        assertEquals(185, faces.size)
+        assertEquals(185, faces.map { it.id }.toSet().size)
+        assertEquals(185, faces.map { it.assetPath }.toSet().size)
+        faces.forEach { face ->
+            assertTrue("Missing ${face.assetPath}", File(assetsRoot(), face.assetPath).isFile)
+            assertEquals(face.id, FontCatalog.sanitizeId(face.id))
+            assertEquals(face.id, FontCatalog.sanitizeDateId(face.id))
+            assertEquals(face.assetPath, FontCatalog.assetPath(face.id))
+            assertEquals(face.family, FontCatalog.family(face.id))
+            assertTrue(File(assetsRoot(), FontCatalog.licenseAssetPath(face.id)!!).isFile)
+        }
+        assertEquals("outfit", FontCatalog.sanitizeId("outfit@../../not-a-font.ttf"))
+        val bold = faces.first { it.id.startsWith("poppins@") && it.assetPath.endsWith("Poppins-Bold.ttf") }
+        assertEquals(bold.id, FontCatalog.sanitizeId(bold.id.uppercase()))
+    }
+
     @Test fun apacheFamiliesKeepTheirApacheLicense() {
         val apache = FontCatalog.families.filter { it.license == FontLicense.APACHE }
         assertTrue(apache.isNotEmpty())

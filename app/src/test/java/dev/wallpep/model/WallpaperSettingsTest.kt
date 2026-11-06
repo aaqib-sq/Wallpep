@@ -16,7 +16,7 @@ class WallpaperSettingsTest {
             positionY = 150,
             backgroundName = "../../secret.jpg",
         ).sanitized()
-        assertEquals(TextColors.WHITE, s.textColor)
+        assertEquals(0, s.textColor)
         assertEquals(120, s.clockSizeSp)
         assertEquals(0, s.positionX)
         assertEquals(100, s.positionY)
@@ -60,7 +60,7 @@ class WallpaperSettingsTest {
             dateLetterSpacing = -4,
             dateOpacity = 400,
             datePositionX = -20,
-            datePositionY = 480,
+            datePositionY = 480f,
             dateColor = 0x123456,
         ).sanitized()
         assertEquals(WallpaperSettings.MIN_CLOCK_SIZE, s.clockSizeSp)
@@ -70,8 +70,8 @@ class WallpaperSettingsTest {
         assertEquals(0, s.dateLetterSpacing)
         assertEquals(100, s.dateOpacity)
         assertEquals(0, s.datePositionX)
-        assertEquals(100, s.datePositionY)
-        assertNull(s.dateColor)
+        assertEquals(100f, s.datePositionY, 0.001f)
+        assertEquals(0x123456, s.dateColor)
     }
 
     @Test fun dateColourFollowsTheClockUntilItIsOverridden() {
@@ -87,11 +87,24 @@ class WallpaperSettingsTest {
         assertEquals(100, defaults.clockOpacity)
         assertTrue(defaults.showClock)
         assertEquals(17, defaults.dateSizeSp)
-        assertEquals(0, defaults.dateLetterSpacing)
+        assertEquals(7, defaults.dateLetterSpacing)
         assertEquals(100, defaults.dateOpacity)
         assertFalse(defaults.dateUppercase)
         assertEquals(50, defaults.datePositionX)
-        assertEquals(38, defaults.datePositionY)
+        assertEquals(14.4f, defaults.datePositionY, 0.001f)
+    }
+
+    @Test fun fractionalDatePositionSurvivesAndInvalidValuesAreClamped() {
+        assertEquals(14.4f, WallpaperSettings(datePositionY = 14.4f).sanitized().datePositionY, 0.001f)
+        assertEquals(0f, WallpaperSettings(datePositionY = -1f).sanitized().datePositionY, 0.001f)
+        assertEquals(14.4f, WallpaperSettings(datePositionY = Float.NaN).sanitized().datePositionY, 0.001f)
+    }
+
+    @Test fun systemTimeStyleMatchesDeviceButExplicitStylesOverrideIt() {
+        assertTrue(TimeStyle.SYSTEM.uses24Hour(true))
+        assertFalse(TimeStyle.SYSTEM.uses24Hour(false))
+        assertFalse(TimeStyle.TWELVE_HOUR.uses24Hour(true))
+        assertTrue(TimeStyle.TWENTY_FOUR_HOUR.uses24Hour(false))
     }
 
     @Test fun unknownEnumValuesUseDefaults() {

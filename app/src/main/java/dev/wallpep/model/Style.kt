@@ -12,25 +12,20 @@ enum class EffectStyle(val label: String) { NONE("None"), RAIN("Rain"), SNOW("Sn
 enum class StrokeStyle(val label: String) { SOLID("Solid"), DASHED("Dashed"), DOTTED("Dotted") }
 
 /** Wallpaper transition styles offered in Settings; the engine honours these in a later slice. */
-enum class AnimationStyle(val label: String) {
+enum class AnimationStyle(val label: String, val selectable: Boolean = true) {
     FADE_AND_SCALE("Fade & Scale"),
-    CROSS_FADE("Cross Fade"),
-    SLIDE_UP("Slide Up"),
-    SLIDE_DOWN("Slide Down"),
-    ZOOM_IN("Zoom In"),
-    ZOOM_OUT("Zoom Out"),
-    FLIP("Flip"),
-    CUBE("Cube"),
-    ROTATE("Rotate"),
-    BLUR_FADE("Blur Fade"),
-    WIPE("Wipe"),
-    DEPTH("Depth"),
-    DRIFT("Drift"),
-    REVEAL("Reveal"),
-    STACK("Stack"),
-    PUSH("Push"),
-    GLIDE("Glide"),
-    NONE("None"),
+    SLIDE_UP("Slide Up Fade"), SLIDE_DOWN("Slide Down Fade"),
+    SLIDE_LEFT("Slide Left Fade"), SLIDE_RIGHT("Slide Right Fade"),
+    ZOOM_IN("Zoom In"), ZOOM_OUT("Zoom Out"), POP_IN("Pop In"),
+    SPIN_IN("Spin In"), ROTATE_IN("Rotate In"), SWING("Swing"),
+    UNFOLD("Unfold"), GLITCH("Glitch"), HEARTBEAT("Heartbeat"),
+    DROP_BOUNCE("Drop Bounce"), BLUR_IN("Blur In"),
+    STRETCH_HORIZONTAL("Stretch Horizontal"), STRETCH_VERTICAL("Stretch Vertical"),
+    // Keep old enum names readable in existing documents; do not offer them as new choices.
+    CROSS_FADE("Cross Fade", false), FLIP("Flip", false), CUBE("Cube", false),
+    ROTATE("Rotate", false), BLUR_FADE("Blur Fade", false), WIPE("Wipe", false),
+    DEPTH("Depth", false), DRIFT("Drift", false), REVEAL("Reveal", false),
+    STACK("Stack", false), PUSH("Push", false), GLIDE("Glide", false), NONE("None", false),
 }
 
 /**
@@ -181,6 +176,8 @@ data class ClockFormat(
     val label: String,
     val separator: String = ":",
     val withSeconds: Boolean = false,
+    // The separator preceding seconds is independent of the hour/minute separator.
+    val secondsSeparator: String = " ",
     val stacked: Boolean = false,
     val padHour: Boolean = true,
 )
@@ -196,7 +193,7 @@ object ClockFormats {
         ClockFormat("hh.mm", "hh.mm", separator = "."),
         ClockFormat("hh/mm", "hh/mm", separator = "/", stacked = true),
         ClockFormat("hh_mm_ss", "hh mm ss", separator = " ", withSeconds = true),
-        ClockFormat("hhmmss", "hhmmss", separator = "", withSeconds = true),
+        ClockFormat("hhmmss", "hhmmss", separator = "", withSeconds = true, secondsSeparator = ""),
         ClockFormat("hh:mm_ss", "hh:mm ss", separator = ":", withSeconds = true),
         ClockFormat("hh.mm_ss", "hh.mm ss", separator = ".", withSeconds = true),
         ClockFormat("h:mm", "h:mm", separator = ":", padHour = false),
@@ -230,6 +227,9 @@ object DateFormats {
         DateFormat("EEEE, MMMM dd", "EEEE, MMMM dd"),
         DateFormat("EEE, MMM dd", "EEE, MMM dd"),
         DateFormat("EEEE MMMM dd", "EEEE MMMM dd"),
+        DateFormat("MMM dd yyyy", "MMM dd yyyy"),
+        DateFormat("EEE MMM dd", "EEE MMM dd"),
+        DateFormat("EEEE MMM dd", "EEEE MMM dd"),
     )
 
     const val DEFAULT_ID = "dd MMM yyyy"

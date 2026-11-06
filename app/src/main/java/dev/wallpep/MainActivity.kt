@@ -435,8 +435,20 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
         if (!ready()) return
         // Applying is an explicit intent: a brand-new design is kept even if nothing was edited.
         if (currentDesignId == null) dirty = true
-        persistNow()
-        openChooser()
+        // The service reads the repository as soon as the chooser starts. Wait for the
+        // current design to be durable first; otherwise a quick Apply can show the old design.
+        persistJob?.cancel()
+        busy = true
+        saving = true
+        renderAll()
+        persistJob = lifecycleScope.launch {
+            try {
+                if (writeDesign()) openChooser()
+            } finally {
+                busy = false
+                renderAll()
+            }
+        }
     }
 
     private fun openChooser() {
@@ -469,17 +481,17 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
     }
 
     /** Writes the settings document and the collection entry together. */
-    private suspend fun writeDesign() {
-        if (!initialized) return
+    private suspend fun writeDesign(): Boolean {
+        if (!initialized) return false
         if (currentDesignId == null) {
             if (!dirty) {
                 saving = false
                 editor.render(settings, currentName, favorited, photoLabel(), saving)
-                return
+                return true
             }
             currentDesignId = DesignStore.newId()
         }
-        val id = currentDesignId ?: return
+        val id = currentDesignId ?: return false
         val record = SavedDesign(
             id = id,
             name = DesignStore.cleanName(currentName),
@@ -492,10 +504,12 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
             repository.save(settings)
             designStore.upsert(record)
             dirty = false
+            return true
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             toast("Could not save settings. Please try again.")
+            return false
         } finally {
             saving = false
             renderAll()
