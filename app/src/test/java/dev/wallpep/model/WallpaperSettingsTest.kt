@@ -154,4 +154,13 @@ class WallpaperSettingsTest {
         assertFalse(defaults.clockAnimations)
         assertEquals(AnimationStyle.FADE_AND_SCALE, defaults.animationStyle)
     }
+
+    @Test fun theBatteryElementIsOffByDefaultAndTheSurfaceSwitchesAreOn() {
+        val defaults = WallpaperSettings()
+        // The battery element is opt-in: the clock stays until the user asks for it.
+        assertFalse(defaults.batteryWhileCharging)
+        // Both surfaces show their content by default.
+        assertTrue(defaults.showOnLockscreen)
+        assertTrue(defaults.showOnHomescreen)
+    }
 }

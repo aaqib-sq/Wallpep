@@ -27,6 +27,7 @@ import dev.wallpep.model.TextLayerSettings
 import dev.wallpep.model.TransformSettings
 import dev.wallpep.model.WallpaperSettings
 import dev.wallpep.render.WallpaperScene
+import dev.wallpep.system.BatteryFeed
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -180,11 +181,29 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     private lateinit var previewFrame: FrameLayout
     private lateinit var fullscreenOverlay: FrameLayout
     private var livePreview = true
+    // The live battery feed for the battery element (#147); released when the editor closes.
+    private lateinit var batteryFeed: BatteryFeed
 
     init {
         root = FrameLayout(activity)
         root.addView(buildScreen(), FrameLayout.LayoutParams(-1, -1))
         selectTab(Tab.CLOCK)
+        // The battery element (#147) shows the real level in the preview, so the editor and
+        // the applied wallpaper agree. The feed is public-API only and needs no permission.
+        batteryFeed = BatteryFeed(activity) { reading ->
+            scene.batteryReading = reading
+            if (livePreview) scene.invalidate()
+        }
+    }
+
+    /** Subscribes to the battery feed while the editor is on screen. */
+    fun startBatteryFeed() {
+        if (this::batteryFeed.isInitialized) batteryFeed.start()
+    }
+
+    /** Releases the battery subscription when the editor leaves the screen. */
+    fun release() {
+        if (this::batteryFeed.isInitialized) batteryFeed.stop()
     }
 
     // ---------------------------------------------------------------- layout
@@ -414,6 +433,12 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
 
         val format = section("Format")
         switch(format, "Show Clock", read = { it.showClock }, write = { s, on -> s.copy(showClock = on) })
+        switch(
+            format, "Show battery % while charging",
+            note = "OFF keeps the clock. ON shows the real battery level in the clock's place while the phone is charging.",
+            read = { it.batteryWhileCharging },
+            write = { s, on -> s.copy(batteryWhileCharging = on) },
+        )
         format.addView(activity.uiText("Time Format", 12f, Pulse.MUTED), activity.full(top = 12))
         chips(
             format,

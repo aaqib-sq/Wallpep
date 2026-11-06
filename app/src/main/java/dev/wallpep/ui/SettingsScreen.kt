@@ -91,7 +91,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         homescreen = activity.switchRow("Show content on homescreen", "Wallpep draws on the home screen.") { on ->
             act { it.copy(showOnHomescreen = on) }
         }
-        battery = activity.switchRow("Show battery % while charging") { on ->
+        battery = activity.switchRow("Show battery % while charging", "Shows the real battery level in the clock's place while the phone is charging.") { on ->
             act { it.copy(batteryWhileCharging = on) }
         }
         animations = activity.switchRow("Enable clock animations") { on ->

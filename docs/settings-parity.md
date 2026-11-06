@@ -1,25 +1,22 @@
 # Settings parity work
 
-Base: `origin/main` at `ce85b4256e90a7c70800f926dcc7f793db71c2ab`, verified with the GitHub CLI
-(`gh auth status`, `gh repo view aaqib-sq/Wallpep`, `gh pr list --state merged`, `gh pr view 10`)
-and freshly fetched (`git fetch origin`) before branching. PR #10 (the 149/159 audit slice) is
-merged into that commit; this branch is off that fresh main. No push to main, no merge.
+Base: `origin/main` at `cc492de521b8f82400e2419bbc9c642fef1ef6c4` (the merge of PR #11), verified
+with the GitHub CLI (`gh auth status`, `gh repo view aaqib-sq/Wallpep`, `git fetch origin main`)
+before branching. This branch is off that fresh main. **No push to main, no merge.**
 
 ## Audit before counting
 
-The previous version of this document (on main) audited the codebase at **149 / 159** and listed
-the remaining ten items with reasons. That audit is the starting point of this slice; it was
+The previous version of this document (on main) audited the codebase at **155 / 159** and listed
+the remaining four items with reasons. That audit is the starting point of this slice; it was
 re-verified against the fresh main before writing any code:
 
 - `WallpaperScene` is the single render path for the editor preview, collection thumbnails and
   the applied wallpaper; every counted item is consumed there or in `WallpepService`.
-- The ten remaining items were exactly: #45 (Clock style vocabulary never recovered),
-  #46/#47/#88/#89 (per-layer clock/date parallax), #145/#146 (surface content gating),
-  #147 (battery % while charging) and #150/#151 (the 18 clock animation transitions).
+- The four remaining items were exactly: #45 (Clock style vocabulary never recovered),
+  #145/#146 (surface content gating) and #147 (battery % while charging).
 
-This slice implements two of those groups — the transition engine (#150, #151) and the
-per-layer parallax controls (#46, #47, #88, #89) — and honestly closes #45 as unrecoverable.
-#145/#146/#147 are deliberately untouched per the slice brief.
+This slice implements **#147** for real and implements **#145/#146** on the public-API
+mechanism the research actually found. **#45 stays unrecoverable and is not built.**
 
 ## Counting rule
 
@@ -29,7 +26,7 @@ merely a stored value. A visual/device check is **not** available in this enviro
 source-level consumption is what is counted, with the caveats listed below. Inventory numbers
 refer to the supplied `depthx-settings-inventory.md`.
 
-## Coverage: 155 / 159 (4 remaining)
+## Coverage: 158 / 159 (1 remaining)
 
 | Group | Counted | Numbers |
 |---|---|---|
@@ -39,68 +36,122 @@ refer to the supplied `depthx-settings-inventory.md`.
 | Colorize | 5 | #129–133 |
 | Effects / particles | 7 | #134–140 |
 | Parallax (global pairs) | 4 | #141–144 |
-| App settings, guides, library | 8 | #148–155 |
+| App settings, guides, library | 9 | #145–149, #151–155 |
 | Custom photo flow | 4 | #156–159 |
-| **Total** | **155** | |
+| Battery element | 1 | #147 |
+| **Total** | **158** | |
 
-Groups unchanged from the 149/159 audit on main (Clock #1–44, Date #48–87, Text #90–128,
-Colorize, Effects, global Parallax #141–144, Flow #156–159) are not re-claimed here; their
-verification notes stand as recorded in the previous revision of this document. The deltas:
+Groups unchanged from the 155/159 audit on main (Clock #1–44, Date #48–89, Text #90–128,
+Colorize, Effects, global Parallax #141–144, #148–#155, Flow #156–159) are not re-claimed here;
+their verification notes stand as recorded in the previous revision of this document. The
+deltas are #147, #145 and #146.
 
-### #150 Enable clock animations / #151 Animation Style — now real output (was save-only)
+---
 
-- **Control + persistence** already shipped: the Settings switch and the 18-style picker write
-  `clockAnimations` / `animationStyle` into the settings document (`SettingsCodec` keys
-  `clock_animations`, `animation_style`); all 18 reference style names match inventory #151
-  exactly (asserted by `ClockTransitionsTest`).
-- **Output behaviour, new in this slice:** `ClockTransitions` (pure Kotlin, unit-tested) defines
-  all 18 entrance curves — Fade & Scale (default), Slide Up/Down/Left/Right Fade, Zoom In/Out,
-  Pop In, Spin In, Rotate In, Swing, Unfold, Glitch, Heartbeat, Drop Bounce, Blur In, Stretch
-  Horizontal/Vertical — as `TransitionFrame` values (alpha, scale, translate, rotation, pivot,
-  blur, glitch intensity) over wall-clock progress. `WallpaperScene` applies them to the cached
-  clock (hour + minute) and date layer bitmaps during compositing: the transition matrix sits
-  outside the user's Transform warp, Blur In uses a `BlurMaskFilter` on the composite paint
-  (hardware-canvas capable; it degrades to the alpha/scale ramp where mask filters are ignored),
-  Glitch slices the layer into deterministic jittered bands. The date trails the clock by 90 ms.
-- **Play moments:** (a) *wallpaper apply / return-to-home* — `WallpepService` arms the entrance
-  whenever a visible engine receives a **new** effective settings document (first load after
-  becoming visible, an editor save while applied, an auto-rotate design switch); (b) *minute
-  rollover* — the scene detects the minute tick changing inside `onDraw` and auto-starts, in the
-  applied wallpaper and the editor preview alike. The first drawn minute after a (re)start never
-  auto-animates, so thumbnails and fresh surfaces do not flash a half-started transition.
-- **Battery sanity:** transitions are bounded bursts (450–950 ms per style). The engine
-  re-requests vsync frames only while `scene.transitionActive`; the attached preview pumps
-  itself with `postOnAnimation` only while running; every curve ends exactly at rest, and
-  `release()` cancels all transition state when an engine hides. With the switch off (default),
-  behaviour is byte-identical to the previous slice: minute/second/particle cadence only, no
-  always-on animation loop, no new sensor, no new permission, no new dependency.
-- **Honest caveats:** the **text layer does not animate** (the slice brief scopes the engine to
-  the clock and date layers; inventory #150's DepthX description includes text). Legacy enum
-  names kept for old documents (Cross Fade, Flip, …) fall back to plain curves and NONE never
-  animates. No device/emulator visual check was possible; the curves are verified by unit tests
-  (endpoints exactly at rest, bounded ranges, drop-bounce continuity) and by source-level
-  consumption in the single render path.
+### #147 Show battery % while charging — real output (was save-only)
 
-### #46, #47, #88, #89 per-layer clock/date parallax — new controls + renderer wiring
+- **Control + persistence (already shipped):** the Settings switch and the Clock tab's
+  "Show battery % while charging" write `batteryWhileCharging` into the settings document
+  (`SettingsCodec` key `battery_while_charging`). It defaults to **off**, so the clock is
+  unchanged until the user asks for the element.
+- **The value is real, and it is the system's:** `system/BatteryReader` reads the level with
+  `BatteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)` and the charging
+  state with `BatteryManager.isCharging()`, with the sticky `ACTION_BATTERY_CHANGED` broadcast
+  as the fallback for both. Both are public system APIs that need **no permission**, and the
+  app requests none. `BATTERY_PROPERTY_CAPACITY` returns `Integer.MIN_VALUE` when the platform
+  cannot answer; anything outside 0..100 (and a missing level) is treated as *"no answer"*, and
+  **no value is ever faked or hardcoded** — with no real level the element simply does not
+  draw.
+- **Live updates:** `WallpepService` subscribes to `ACTION_BATTERY_CHANGED`,
+  `ACTION_POWER_CONNECTED` and `ACTION_POWER_DISCONNECTED` **only while the engine is visible**,
+  and the editor preview runs the same feed through `system/BatteryFeed` only while the app is
+  in the foreground. A changed reading is pushed into the scene and a frame is requested, so
+  the percentage updates the moment the level or the charging state changes.
+- **Output behaviour:** while the phone is on power the element **takes the clock's place**,
+  which is what inventory #147 describes ("Replaces the clock or date with the battery
+  percentage while the phone charges"). It is drawn with the clock's own typography — face,
+  size, letter spacing, colours, gradient, stroke, shadow, transform and position — so it
+  reads as the clock it replaces rather than as a foreign label, and it follows the clock's
+  own over-foreground flip and parallax. The date layer is untouched, matching the reference
+  wording ("the clock **or** date").
+- **Pure, unit-tested logic:** `render/BatteryElement.kt` holds the reading type, the charge
+  states, the formatting and the replace-the-clock rule with no Android types;
+  `BatteryElementTest` pins that a missing level is never rendered as a number, that the
+  element only draws while the phone is on power, and that the toggle-off case never replaces
+  the clock.
 
-- **Controls:** the Parallax tab's "Clock, Date & Text" sub-tab now carries **Clock parallax**
-  and **Date parallax** on/off switches and 0–100 % strength sliders beside the existing global
-  pair (#141/#142), in the same Obsidian card style, all unlocked.
-- **Persistence:** four additive schema-1 keys (`parallax_clock`, `parallax_clock_strength`,
-  `parallax_date`, `parallax_date_strength`); defaults on/100 % and `sanitized()` clamps, so
-  documents saved before this slice decode to exactly the old behaviour — no migration.
-- **Output behaviour:** `WallpaperScene.onDraw` computes a separate shift for the clock parts,
-  the date and the text layer through the pure helper `layerParallaxScale` (unit-tested): a
-  layer tilts only when the global switch **and** its own switch are on, and its strength is a
-  percentage of the global travel. The text layer keeps the global pair (the inventory defines
-  no per-text fields). The existing gyroscope registration in `WallpepService` is unchanged —
-  still gated on the global toggles, still visible-only, still no permission — so the §F sensor
-  decision taken by PR #9 is neither extended nor silently dropped.
+### #145 Show content on lockscreen / #146 Show content on homescreen — real output (was save-only)
+
+The brief asked for research first and an implementation only if a **real public-API mechanism**
+exists. It does, in two parts, and the two parts cover different situations. The honest
+summary: **the surface can be identified, but not per frame on a shared engine.**
+
+**What was checked, and what each check found**
+
+1. **`WallpaperService.Engine.getWallpaperFlags()` / `onWallpaperFlagsChanged(int)` — API 34+,
+   public.** The engine's flags are `FLAG_SYSTEM` (home), `FLAG_LOCK` (lock) or both. In AOSP
+   the value is the wallpaper data's `which` flag, handed to the engine when the system
+   attaches it, and `Engine.getWallpaperFlags()` returns exactly that value. **This is a real
+   mechanism, and it is exact** — but only when the platform gives the engine one surface.
+2. **"Independent lock screen live wallpaper" (Android 14 QPR1 and later on some builds).**
+   The platform's own feature that lets the lock screen have its own live wallpaper. When it
+   is enabled *and* the user picks one screen only, the lock screen and the home screen get
+   **separate engine instances**, so each engine's flags name its own surface exactly. This is
+   the case where #145/#146 are implemented with total precision.
+3. **`KeyguardManager.isKeyguardLocked()` — public since API 16, no permission.** It says
+   whether the keyguard is showing *right now*. For an engine that serves **both** screens this
+   is the only signal that names the visible surface.
+4. **The shared-engine limit, stated plainly.** When the user picks "Home screen and lock
+   screen" — the default, and the only choice on Android 13 and earlier — **one engine and one
+   surface serve both screens** and the same pixels are composited onto both. No public API can
+   tell the engine "this frame is going to the lock screen", and none was found: the wallpaper
+   flags are `FLAG_SYSTEM | FLAG_LOCK` for that engine, `WallpaperManager.getWallpaperId()` and
+   `getWallpaperInfo()` describe *which wallpaper* is set, not *which surface this frame is
+   for*, and `onApplyWallpaper(int)` is a preview-apply callback, not a per-frame signal.
+   The keyguard state is therefore used for the shared engine, which is sound because the home
+   screen is only visible while the device is unlocked and the lock screen only while it is
+   locked.
+5. **`WindowManager`/`WindowInsets`/display APIs** were considered and rejected: they report
+   the wallpaper window's insets and the display, not which system surface is compositing the
+   frame. `SurfaceControl`/`ViewRootImpl` are not public APIs.
+
+**The implementation**
+
+- `wallpaper/SurfacePolicy.kt` (pure, unit-tested) turns the platform's answer into a decision:
+  `surfaceTargetFromFlags` maps the flags to `HOME` / `LOCK` / `SHARED`, and
+  `contentVisibleFor` applies the two switches:
+  - a **home-only** engine follows "Show content on homescreen";
+  - a **lock-only** engine follows "Show content on lockscreen";
+  - a **shared** engine follows the switch that matches the keyguard state at that moment.
+- `WallpepService` reads the engine's own flags on API 34+ (`onWallpaperFlagsChanged` and
+  `onCreate`), and re-reads the keyguard state before every drawn frame, because a device can
+  lock without a broadcast. It then sets `WallpaperScene.contentVisible`.
+- `WallpaperScene` gates **only the content layers** — the clock, the date and the text layer —
+  exactly as the inventory words it ("clock/date/text hide on the lock screen only"). The
+  wallpaper image and the particle effects are never gated.
+- The editor preview and the collection thumbnails leave `contentVisible` on, so they always
+  show the full scene; the gate is an engine decision about a real system surface.
+
+**The behaviour change this required, stated plainly**
+
+Until now Wallpep **refused to draw while the keyguard was locked** (Phase 1's "home screen
+only" stance, recorded in `SCOPE.md`) and refused to draw a lock-only engine at all. Both rules
+had to go: a live wallpaper that stops rendering when the phone is locked cannot show content
+on the lock screen at all, so "Show content on lockscreen" would have been a control with no
+effect — a fake. The engine now draws whenever **its own surface is visible** and the screen is
+awake, which is the normal Android rule; the keyguard state only chooses which content that
+surface may show. `SCOPE.md` and `STATUS.md` are updated on this branch to record the change.
+The engine is still fully event-driven: it draws on minute boundaries (and on the second for
+seconds formats), on transitions, on settings changes and on battery changes, and it releases
+its bitmaps and cancels its work when the surface goes away.
+
+---
 
 ### #45 Clock style — vocabulary unrecoverable; reported plainly, nothing invented
 
-The style-selector field exists in the reference code, but its **value vocabulary was never
-recovered**, and this slice could not recover it either. What was checked, in order:
+Unchanged from the previous revision, and deliberately **not** re-attempted. The style-selector
+field exists in the reference code, but its **value vocabulary was never recovered**. What was
+checked, in order:
 
 1. **The reference inventory itself** (attached `depthx-settings-inventory.md`): item #45 states
    the vocabulary "was not recovered"; §K ("Unclear items") repeats that only the *hypothesis*
@@ -114,76 +165,75 @@ recovered**, and this slice could not recover it either. What was checked, in or
    analysis is the only DEX-derived source and it records the values as unreadable (the field
    name list even includes R8-obfuscated config fields treated as unreadable).
 4. **Public web**: a search for the app's clock-style setting returned only generic marketing
-   and review copy ("fully customisable clock (style, size, …)") from unrelated depth-wallpaper
-   apps — no value vocabulary for this field.
+   and review copy from unrelated depth-wallpaper apps — no value vocabulary for this field.
 
 Inventing a selector with guessed values would create a fake parity claim, so **#45 stays not
 counted and not built**. Wallpep already ships both rendering paths the leading hypothesis
 points at — inline formats and stacked ("vertical") formats — selectable through the clock
 Format list (#2), which is the honest equivalent on record.
 
-## Remaining (4)
+## Remaining (1)
 
 - **#45 Clock style** — value vocabulary unrecoverable from the reference material (report
   above); no control, no persisted field, nothing guessed.
-- **#145 Show content on lockscreen / #146 Show content on homescreen** — controls and
-  persistence exist; the engine still does not gate clock/date/text by target surface.
-  **Untouched, deliberately, per the slice brief.**
-- **#147 Show battery % while charging** — control and persistence only; **no render path
-  exists** (no battery receiver feeds a value into the scene). **Not started, deliberately, per
-  the slice brief** (needs a product decision: optional battery element vs status text).
 
-**Still save-only, with reasons:** #145, #146 (surface gating untouched this slice) and #147
-(no render path; faking it is forbidden by the brief). #45 is not "save-only" — it has neither
-a control nor a persisted value, by honest choice.
+**Still save-only, with reasons:** none. #145, #146 and #147 were the last save-only items and
+all three now have real output behaviour. #45 is not "save-only" — it has neither a control nor
+a persisted value, by honest choice.
 
 ## What this slice actually changes
 
 No new dependency, permission, workflow, catalogue, paywall or second render path; the schema
 stays 1 and every key is additive:
 
-1. **`render/ClockTransitions.kt` (new, pure).** The 18 style curves as `TransitionFrame`
-   progress values, per-style durations, easing helpers, the keyframed heartbeat, the
-   piecewise-parabolic drop bounce and a deterministic glitch hash. No Android types, so the
-   whole vocabulary is unit-testable off device.
-2. **`render/LayerParallax.kt` (new, pure).** `layerParallaxScale` — the per-layer composition
-   rule (global AND layer switch; layer strength = percent of global travel; clamped).
-3. **`render/WallpaperScene.kt`.** The transition state machine (`playEntranceAnimation`,
-   minute-rollover auto-start, `transitionActive`, bounded self-pumping for attached views,
-   cancellation in `release()`/detach), per-part frames in `compositeLayer` (translate/scale/
-   rotate around per-style pivots outside the user warp, alpha, `BlurMaskFilter` blur, glitch
-   bands), and per-layer clock/date/text parallax shifts.
-4. **`wallpaper/WallpepService.kt`.** Arms the entrance on a new effective settings document
-   (`lastAppliedSettings` identity, reset on start/stop) and re-requests frames after a draw
-   only while `scene.transitionActive` — the burst ends itself and the engine idles again.
-5. **`model/WallpaperSettings.kt` + `storage/SettingsCodec.kt`.** The four per-layer parallax
-   fields/keys with behaviour-preserving defaults and clamps.
-6. **`ui/EditorScreen.kt`.** The per-layer CLOCK/DATE controls in the Parallax "Clock, Date &
-   Text" sub-tab, wired through the existing switch/slider plumbing into the one settings
-   document; the seven tabs and their order are untouched.
-7. **`MainActivity.kt`.** Thumbnail scenes set `animationsEnabled = false`: cards always show
-   the resting scene (matching the existing "thumbnails never animate" rule for particles).
-8. **Tests.** `ClockTransitionsTest` (18-style label list vs inventory #151, every curve rests
-   exactly at p = 1 and starts hidden, bounded ranges across all styles, clamped progress,
-   monotonic fade, deterministic bounded glitch hash, drop-bounce continuity and settle,
-   top-edge pivots for Swing/Unfold, NONE never animates), `LayerParallaxTest` (composition,
-   defaults reproduce old behaviour, clamping), and `WallpaperSettingsTest` additions
-   (per-layer defaults, clamps, animation defaults).
+1. **`render/BatteryElement.kt` (new, pure).** The battery reading, the charge states, the
+   percentage formatting and the replace-the-clock rule, with no Android types.
+2. **`system/BatteryReader.kt` (new).** The real `BatteryManager` read, with the sticky
+   `ACTION_BATTERY_CHANGED` broadcast as the fallback and the "no answer" sentinel handled.
+3. **`system/BatteryFeed.kt` (new).** A visible-only subscription to the battery broadcasts
+   that pushes each new reading to the scene.
+4. **`wallpaper/SurfacePolicy.kt` (new, pure).** The surface target and the content-visibility
+   rule, with the research written down next to the code.
+5. **`render/WallpaperScene.kt`.** The `batteryReading` and `contentVisible` inputs, the
+   battery element layer (own typography, own transform, own parallax, cached like every other
+   layer), and the content gating that skips the clock, the date and the text layer.
+6. **`wallpaper/WallpepService.kt`.** The battery receiver (visible-only), the surface target
+   from the engine's own wallpaper flags, the live keyguard read before each frame, and the
+   engine now drawing on a locked device.
+7. **`wallpaper/RenderPolicy.kt`.** The render gate no longer treats "locked" as "hidden"; the
+   keyguard state moved out of the visibility rule and into the content rule.
+8. **`ui/EditorScreen.kt` + `ui/SettingsScreen.kt`.** The "Show battery % while charging"
+   switch in the Clock tab, the live battery feed behind the preview, and the explanatory note.
+9. **`MainActivity.kt`.** The editor's battery feed starts with the app's foreground and stops
+   when it leaves.
+10. **`storage/SettingsDocument.kt` (new).** The document's key names and its missing-key rule,
+    with no Android types, so the writer and the reader cannot drift apart and the schema can
+    be pinned by an ordinary JVM test.
+11. **Tests.** `BatteryElementTest`, `SurfacePolicyTest`, `SettingsCodecTest` (new) and
+    additions to `RenderPolicyTest` and `WallpaperSettingsTest`.
+
+The settings tests follow the repository's existing pattern: the document is written and read
+with `org.json`, whose Android stub cannot run in a local JVM unit test, so the tests pin the
+**pure** parts — the key names and the rule that a document predating a key keeps the shipped
+default — rather than the JSON round trip. No test dependency was added for this.
 
 ## Constraints re-checked
 
 Obsidian black + electric blue #2563EB, no gold; seven tabs in order Clock, Date, Text,
 Transform, Colorize, Parallax, Effects; all settings unlocked (no paywall/Pro/login/ads/
 analytics/server/catalogue); Home shows only the user's own saved wallpapers; no DepthX code,
-wallpapers or fonts; minSdk 33 / targetSdk 37; manifest requests `BIND_WALLPAPER` only and no
-new permission was added; no new dependencies; no workflow changes; `WallpaperScene` remains
-the only render path (preview, thumbnails, applied wallpaper agree — thumbnails deliberately
-draw the resting scene, as they already did for particles).
+wallpapers or fonts; minSdk 33 / targetSdk 37; the manifest still requests `BIND_WALLPAPER`
+only and **no new permission was added** (the battery level, the charging state and the keyguard
+state are all permission-free public APIs); no new dependencies; no workflow changes;
+`WallpaperScene` remains the only render path (preview, thumbnails, applied wallpaper agree —
+thumbnails deliberately draw the resting scene and never gate their content).
 
 ## Verification limits (stated plainly)
 
 **No device or emulator verification is possible in this environment.** CI (Compile debug APK +
-Unit tests + Android lint) is the only automated check; the animated transitions, the blur and
-glitch rendering, the stagger timing, the gyro-driven per-layer parallax and the applied-
-wallpaper output have not been visually confirmed on a device. Coverage above is a source audit
-under the stated counting rule, not a device claim.
+Unit tests + Android lint) is the only automated check. The battery percentage on a real
+charging device, the lock-screen presentation on a real lock screen, the shared-engine
+behaviour on a device that mirrors the wallpaper to the lock screen, the independent-lock-
+screen behaviour on a build that supports it, the staggered clock animations, the blur and
+glitch rendering and the gyro-driven parallax have **not** been visually confirmed on a device.
+The coverage above is a source audit under the stated counting rule, not a device claim.

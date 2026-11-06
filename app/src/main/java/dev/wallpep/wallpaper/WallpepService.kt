@@ -2,7 +2,6 @@ package dev.wallpep.wallpaper
 
 import android.app.KeyguardManager
 import android.app.WallpaperColors
-import android.app.WallpaperManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -39,6 +38,7 @@ import dev.wallpep.storage.DesignStore
 import dev.wallpep.storage.RotationStore
 import dev.wallpep.storage.SavedDesign
 import dev.wallpep.storage.SettingsRepository
+import dev.wallpep.system.BatteryReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -105,11 +105,17 @@ class WallpepService : WallpaperService() {
             framePosted = false
             if (!running || !gate.canRender) return@FrameCallback
             // Defensive against delayed OEM visibility callbacks around screen-off/locking.
-            if (!power.isInteractive || keyguard.isKeyguardLocked) {
+            // A locked device still draws: the lock screen is a surface Wallpep renders on
+            // (#145), and the keyguard state only decides which content that surface shows.
+            if (!power.isInteractive) {
                 readScreenState()
                 reconcile()
                 return@FrameCallback
             }
+            // The keyguard can change without a broadcast (a device that locks while the
+            // screen stays on), so the state that names the visible surface is re-read here,
+            // before the frame is drawn.
+            applyContentGate()
             val holder = surfaceHolder
             var canvas: android.graphics.Canvas? = null
             var drewActiveTransition = false
@@ -117,7 +123,7 @@ class WallpepService : WallpaperService() {
                 if (!holder.surface.isValid) return@FrameCallback
                 canvas = holder.lockCanvas() ?: return@FrameCallback
                 // Visibility can only change on the main thread, but check again at the draw site.
-                if (running && gate.canRender && power.isInteractive && !keyguard.isKeyguardLocked) {
+                if (running && gate.canRender && power.isInteractive) {
                     scene.draw(canvas)
                     drewActiveTransition = scene.transitionActive
                 }
@@ -189,6 +195,13 @@ class WallpepService : WallpaperService() {
                     readScreenState()
                 }
                 reconcile()
+                // The keyguard state names the visible surface for a shared engine, and it can
+                // change without a frame being pending (a device that locks or unlocks without
+                // a screen-off/on pair). Re-apply the gate and draw the surface again.
+                if (running && gate.canRender) {
+                    applyContentGate()
+                    requestFrame()
+                }
             }
         }
         private val timeReceiver = object : BroadcastReceiver() {
@@ -205,11 +218,34 @@ class WallpepService : WallpaperService() {
             }
         }
 
+        /**
+         * The battery feed for the battery element (#147).
+         *
+         * `ACTION_BATTERY_CHANGED` is the sticky broadcast the platform sends whenever the
+         * level or the charging state changes; the two power broadcasts cover the moments
+         * where a charger is plugged in or pulled out. All three are public broadcasts that
+         * need **no permission**, and the receiver only exists while this engine is visible.
+         */
+        private val batteryReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (!running || !gate.canRender) return
+                updateBatteryReading()
+            }
+        }
+        private var batteryReceiverRegistered = false
+        private val batteryReader by lazy { BatteryReader(applicationContext) }
+
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             setTouchEventsEnabled(false)
-            if (Build.VERSION.SDK_INT >= 34) updateTarget(wallpaperFlags)
+            // API 34+: the engine reports which screen it renders to. Below that there is only
+            // one surface, so the engine is shared and the keyguard state decides.
+            if (Build.VERSION.SDK_INT >= 34) updateTarget(currentWallpaperFlags())
         }
+
+        /** The engine's own wallpaper flags; API 34+ only. */
+        @androidx.annotation.RequiresApi(34)
+        private fun currentWallpaperFlags(): Int = getWallpaperFlags()
 
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             super.onSurfaceCreated(holder)
@@ -253,11 +289,52 @@ class WallpepService : WallpaperService() {
         }
 
         private fun updateTarget(which: Int) {
-            // API 34+ can identify lock-only engines. Shared home+lock engines cannot be
-            // distinguished per surface; users must choose Home screen in the system chooser.
-            gate.lockOnly = !isPreview && (which and WallpaperManager.FLAG_LOCK) != 0 &&
-                (which and WallpaperManager.FLAG_SYSTEM) == 0
+            // #145, #146: remember which surface this engine serves so the content layers can
+            // be gated per surface.
+            //
+            // API 34+ reports the engine's own wallpaper flags: FLAG_SYSTEM alone means the
+            // home screen, FLAG_LOCK alone means the lock screen, and both together means one
+            // engine serves both surfaces (the default, and the only option before Android
+            // 14). A shared engine is resolved with the keyguard state instead — see
+            // SurfacePolicy for why that is the only signal available there.
+            surfaceTarget = if (isPreview) {
+                SurfaceTarget.SHARED
+            } else {
+                surfaceTargetFromFlags(which, supported = Build.VERSION.SDK_INT >= 34)
+            }
+            applyContentGate()
             reconcile()
+        }
+
+        /** The surface this engine draws for; SHARED until the platform says otherwise. */
+        private var surfaceTarget: SurfaceTarget = SurfaceTarget.SHARED
+
+        /**
+         * Applies the "Show content on lockscreen" / "Show content on homescreen" switches to
+         * the scene. The wallpaper image is never gated; only the clock, the date and the text
+         * layer are.
+         */
+        private fun applyContentGate(settings: WallpaperSettings? = null) {
+            // The surface switches belong to the document the engine is actually showing, so
+            // an auto-rotated design keeps its own choice.
+            val effective = settings ?: baseSettings ?: return
+            // The keyguard state is read live: it is the only signal that names the visible
+            // surface for an engine that serves both, and it can change without a broadcast.
+            val keyguardLocked = keyguard.isKeyguardLocked
+            if (keyguardLocked != !gate.unlocked) {
+                gate.unlocked = !keyguardLocked
+            }
+            val visible = contentVisibleFor(
+                target = surfaceTarget,
+                showOnLockscreen = effective.showOnLockscreen,
+                showOnHomescreen = effective.showOnHomescreen,
+                keyguardLocked = keyguardLocked,
+            )
+            if (scene.contentVisible == visible) return
+            scene.contentVisible = visible
+            // The scene is drawn straight into the surface, so a plain invalidate() would not
+            // reach the screen: the engine has to ask for the next frame itself.
+            requestFrame()
         }
 
         fun configurationChanged() {
@@ -322,6 +399,7 @@ class WallpepService : WallpaperService() {
                 Settings.System.getUriFor(Settings.System.TIME_12_24), false, timeFormatObserver,
             )
             signalsRegistered = true
+            registerBatteryReceiver()
             rotationCursor = -1
             baseSettings = null
             lastAppliedSettings = null
@@ -408,6 +486,8 @@ class WallpepService : WallpaperService() {
             if (!running || !gate.canRender) return
             val effective = effectiveSettings()
             scene.settings = effective
+            // #145, #146: the two surface switches decide what the current surface may show.
+            applyContentGate(effective)
             if (effective !== lastAppliedSettings) {
                 lastAppliedSettings = effective
                 // The apply/return-to-home entrance moment. Whether an animation actually plays
@@ -536,6 +616,48 @@ class WallpepService : WallpaperService() {
             Surface.ROTATION_0
         }
 
+        /**
+         * Subscribes to the battery broadcasts while this engine is visible.
+         *
+         * The battery element is off by default, so the subscription only exists while the
+         * engine renders at all; the level is read from [BatteryManager], which needs no
+         * permission.
+         */
+        private fun registerBatteryReceiver() {
+            if (batteryReceiverRegistered) return
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_BATTERY_CHANGED)
+                addAction(Intent.ACTION_POWER_CONNECTED)
+                addAction(Intent.ACTION_POWER_DISCONNECTED)
+            }
+            try {
+                registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } catch (_: RuntimeException) {
+                return
+            }
+            batteryReceiverRegistered = true
+            updateBatteryReading()
+        }
+
+        private fun unregisterBatteryReceiver() {
+            if (!batteryReceiverRegistered) return
+            try { unregisterReceiver(batteryReceiver) } catch (_: RuntimeException) { }
+            batteryReceiverRegistered = false
+        }
+
+        /** Reads the real battery level and charging state and hands them to the scene. */
+        private fun updateBatteryReading() {
+            val reading = batteryReader.read()
+            val previous = scene.batteryReading
+            if (previous?.percent == reading.percent &&
+                previous?.chargeState == reading.chargeState
+            ) {
+                return
+            }
+            scene.batteryReading = reading
+            requestFrame()
+        }
+
         private fun stopRendering() {
             if (!running) return
             running = false
@@ -553,6 +675,7 @@ class WallpepService : WallpaperService() {
                 contentResolver.unregisterContentObserver(timeFormatObserver)
                 signalsRegistered = false
             }
+            unregisterBatteryReceiver()
             main.removeCallbacks(particleTick)
             particlesArmed = false
             main.removeCallbacks(secondTick)

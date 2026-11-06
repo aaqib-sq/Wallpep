@@ -8,12 +8,13 @@ class RenderGate {
     var width: Int = 0
     var height: Int = 0
     var screenAwake: Boolean = true
+    // Whether the keyguard is showing right now. It does not stop the drawing: the lock
+    // screen is a surface Wallpep renders on (#145). It only decides *which* content the
+    // current surface may show, through contentVisibleFor.
     var unlocked: Boolean = true
-    // On API 34+, the OS can identify a lock-only engine. We never draw one.
-    var lockOnly: Boolean = false
 
     val canRender: Boolean
-        get() = visible && surfaceAvailable && width > 0 && height > 0 && screenAwake && unlocked && !lockOnly
+        get() = visible && surfaceAvailable && width > 0 && height > 0 && screenAwake
 }
 
 /** Schedule from the wall clock rather than accumulating a repeating timer's drift. */

@@ -72,6 +72,33 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
     var settings: WallpaperSettings = WallpaperSettings()
         set(value) { field = value.sanitized(); invalidate() }
 
+    /**
+     * The battery reading the engine feeds in (#147). Null means "nothing known", and the
+     * battery element then does not draw at all — a missing reading is never replaced by a
+     * made-up percentage.
+     */
+    var batteryReading: BatteryReading? = null
+        set(value) {
+            if (field == value) return
+            field = value
+            releaseLayerCaches()
+            invalidate()
+        }
+
+    /**
+     * Whether the content layers (clock, date, text) may be drawn (#145, #146).
+     *
+     * The wallpaper image is never gated by this; only the content layers are, exactly as the
+     * reference app's wording says ("clock/date/text hide on the lock screen only"). The
+     * editor preview and the thumbnails leave this on, so they always show the full scene.
+     */
+    var contentVisible: Boolean = true
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidate()
+        }
+
     private var backgroundBitmap: Bitmap? = null
     private var foregroundBitmap: Bitmap? = null
     private var imagesGeneration = 0L
@@ -86,6 +113,8 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
     private val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val secondsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val batteryPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val batteryStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val strokePrimaryPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val strokeSecondsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
@@ -393,7 +422,7 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         val prepared: PreparedLayer,
     )
 
-    private val layerCaches = arrayOfNulls<LayerCache>(4)
+    private val layerCaches = arrayOfNulls<LayerCache>(5)
 
     private fun releaseLayerCaches() {
         for (i in layerCaches.indices) {
@@ -606,16 +635,31 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         val clockFrame = transitionFrameAt(frameNanos, 0L)
         val dateFrame = transitionFrameAt(frameNanos, DATE_STAGGER_MS)
 
-        if (plan.hourBefore || plan.minuteBefore) {
-            val (hourPart, minutePart) = obtainClock(w, h, now, clockTick)
-            if (plan.hourBefore) hourPart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
-            if (plan.minuteBefore) minutePart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+        // Surface gating (#145, #146): the clock, the date and the text layer are the content
+        // layers. When the engine says the current surface must not show content, they are
+        // skipped entirely — the wallpaper image still draws.
+        val drawContent = contentVisible
+        // The battery element (#147) takes the clock's place while the phone is on power, the
+        // same way the reference app replaces the clock or the date with the percentage.
+        val batteryActive = batteryReplacesClock(settings.batteryWhileCharging, batteryReading)
+
+        if (drawContent && (plan.hourBefore || plan.minuteBefore)) {
+            if (batteryActive) {
+                // The battery element takes the clock's place, so it follows the clock's own
+                // over-foreground flip and parallax.
+                obtainLayer(PART_BATTERY, clockTick) { prepareBatteryLayer(w, h) }
+                    ?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+            } else {
+                val (hourPart, minutePart) = obtainClock(w, h, now, clockTick)
+                if (plan.hourBefore) hourPart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+                if (plan.minuteBefore) minutePart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+            }
         }
-        if (plan.dateBefore) {
+        if (drawContent && plan.dateBefore) {
             obtainLayer(PART_DATE, minuteTick) { prepareDateLayer(w, h, now) }
                 ?.let { compositeLayer(canvas, it, dateShift, dateFrame) }
         }
-        if (plan.textBefore) {
+        if (drawContent && plan.textBefore) {
             obtainLayer(PART_TEXT, minuteTick) { prepareTextLayer(w, h) }
                 ?.let { compositeLayer(canvas, it, textShift, null) }
         }
@@ -625,16 +669,21 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
             canvas.drawBitmap(foreground, null, destination, foregroundPaint)
             canvas.restoreToCount(save)
         }
-        if (plan.hourAfter || plan.minuteAfter) {
-            val (hourPart, minutePart) = obtainClock(w, h, now, clockTick)
-            if (plan.hourAfter) hourPart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
-            if (plan.minuteAfter) minutePart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+        if (drawContent && (plan.hourAfter || plan.minuteAfter)) {
+            if (batteryActive) {
+                obtainLayer(PART_BATTERY, clockTick) { prepareBatteryLayer(w, h) }
+                    ?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+            } else {
+                val (hourPart, minutePart) = obtainClock(w, h, now, clockTick)
+                if (plan.hourAfter) hourPart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+                if (plan.minuteAfter) minutePart?.let { compositeLayer(canvas, it, clockShift, clockFrame) }
+            }
         }
-        if (plan.dateAfter) {
+        if (drawContent && plan.dateAfter) {
             obtainLayer(PART_DATE, minuteTick) { prepareDateLayer(w, h, now) }
                 ?.let { compositeLayer(canvas, it, dateShift, dateFrame) }
         }
-        if (plan.textAfter) {
+        if (drawContent && plan.textAfter) {
             obtainLayer(PART_TEXT, minuteTick) { prepareTextLayer(w, h) }
                 ?.let { compositeLayer(canvas, it, textShift, null) }
         }
@@ -1034,6 +1083,50 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         return hourPrepared to minutePrepared
     }
 
+    /**
+     * The battery element (#147).
+     *
+     * While the phone is charging and the toggle is on, this element takes the clock's place.
+     * It is drawn with the clock's own typography — face, size, letter spacing, colours,
+     * gradient, stroke, shadow, transform and position — so it reads as the clock it replaces
+     * rather than as a foreign label.
+     *
+     * The text is the real level the system reported. When there is no real level the layer is
+     * not prepared at all, so nothing fake is ever drawn.
+     */
+    private fun prepareBatteryLayer(w: Float, h: Float): PreparedLayer? {
+        if (!settings.showClock) return null
+        if (!batteryReplacesClock(settings.batteryWhileCharging, batteryReading)) return null
+        val text = formatBatteryPercent(batteryReading) ?: return null
+
+        val unit = unitScale(w, h)
+        val availableWidth = (w * 0.90f).coerceAtLeast(1f)
+        batteryPaint.typeface = face(settings.font)
+        batteryPaint.textSize = settings.clockSizeSp * unit
+        batteryPaint.letterSpacing = settings.clockLetterSpacing / 100f
+        fitWidth(batteryPaint, text, availableWidth)
+        val fm = batteryPaint.fontMetrics
+        val blockHeight = fm.descent - fm.ascent
+        val contentW = batteryPaint.measureText(text)
+        val top = (h * settings.positionY / 100f - blockHeight / 2f).coerceIn(0f, max(0f, h - blockHeight))
+        val centre = lineCentre(w, settings.positionX, contentW, settings.clockAlign)
+        val baseline = top - fm.ascent
+        val box = RectF(centre - contentW / 2f, top, centre + contentW / 2f, top + blockHeight)
+        val pad = padFor(settings.clockStroke, settings.clockShadow, unit)
+
+        ink(batteryPaint, settings.textColor, settings.clockSecondaryColor, settings.clockGradientEnabled,
+            settings.clockGradientAngle, settings.clockOpacity, box, settings.clockShadow, 3f * unit, 3f * unit, unit)
+        batteryStrokePaint.set(batteryPaint)
+        inkStroke(batteryStrokePaint, settings.clockStroke.color, settings.clockStroke.secondaryColor,
+            settings.clockStroke, settings.clockOpacity, box, unit)
+        val strokeEnabled = settings.clockStroke.enabled
+
+        return preparedLayer(box, pad, settings.clockTransform) { canvas ->
+            if (strokeEnabled) canvas.drawText(text, centre, baseline, batteryStrokePaint)
+            canvas.drawText(text, centre, baseline, batteryPaint)
+        }
+    }
+
     private fun prepareDateLayer(w: Float, h: Float, now: Date): PreparedLayer? {
         if (!settings.showDate) return null
         val locale = locale()
@@ -1276,6 +1369,7 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         private const val PART_CLOCK_MINUTE = 1
         private const val PART_DATE = 2
         private const val PART_TEXT = 3
+        private const val PART_BATTERY = 4
         private const val PART_PRIMARY = 0
         private const val PART_SECONDS = 1
 

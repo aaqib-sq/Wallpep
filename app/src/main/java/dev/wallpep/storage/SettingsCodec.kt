@@ -96,9 +96,9 @@ internal object SettingsCodec {
         put("effect_size", settings.effectSize)
         put("effect_color", settings.effectColor)
         put("effect_opacity", settings.effectOpacity)
-        put("show_on_lockscreen", settings.showOnLockscreen)
-        put("show_on_homescreen", settings.showOnHomescreen)
-        put("battery_while_charging", settings.batteryWhileCharging)
+        put(SettingsKeys.SHOW_ON_LOCKSCREEN, settings.showOnLockscreen)
+        put(SettingsKeys.SHOW_ON_HOMESCREEN, settings.showOnHomescreen)
+        put(SettingsKeys.BATTERY_WHILE_CHARGING, settings.batteryWhileCharging)
         put("clock_animations", settings.clockAnimations)
         put("animation_style", settings.animationStyle.name)
         put("auto_rotate_interval_hours", settings.autoRotateIntervalHours)
@@ -171,15 +171,36 @@ internal object SettingsCodec {
             effectSize = json.optInt("effect_size", defaults.effectSize),
             effectColor = json.optInt("effect_color", defaults.effectColor),
             effectOpacity = json.optInt("effect_opacity", defaults.effectOpacity),
-            showOnLockscreen = json.optBoolean("show_on_lockscreen", defaults.showOnLockscreen),
-            showOnHomescreen = json.optBoolean("show_on_homescreen", defaults.showOnHomescreen),
-            batteryWhileCharging = json.optBoolean("battery_while_charging", defaults.batteryWhileCharging),
+            // The three keys this slice added go through one shared rule: a document that
+            // carries the key uses the stored value, one that predates it keeps the
+            // shipped default. See SettingsDocument.
+            showOnLockscreen = SettingsDefaults.booleanFor(
+                SettingsKeys.SHOW_ON_LOCKSCREEN, json.storedBoolean(SettingsKeys.SHOW_ON_LOCKSCREEN),
+            ),
+            showOnHomescreen = SettingsDefaults.booleanFor(
+                SettingsKeys.SHOW_ON_HOMESCREEN, json.storedBoolean(SettingsKeys.SHOW_ON_HOMESCREEN),
+            ),
+            batteryWhileCharging = SettingsDefaults.booleanFor(
+                SettingsKeys.BATTERY_WHILE_CHARGING, json.storedBoolean(SettingsKeys.BATTERY_WHILE_CHARGING),
+            ),
             clockAnimations = json.optBoolean("clock_animations", defaults.clockAnimations),
             animationStyle = storedEnum(json.optString("animation_style"), defaults.animationStyle),
             autoRotateIntervalHours = json.optInt("auto_rotate_interval_hours", defaults.autoRotateIntervalHours),
             backgroundName = if (json.has("background_file")) json.optString("background_file") else null,
         ).sanitized()
     }
+
+    /**
+     * The boolean a document stores under [key], or null when the document does not carry a
+     * usable boolean there.
+     *
+     * `optBoolean` cannot express "absent": it would hand back a fallback for a value the
+     * document never stored. A key that is missing, null, or holds something other than a
+     * boolean is reported as absent, so a damaged document falls back to the shipped default
+     * instead of to a surprise value.
+     */
+    private fun JSONObject.storedBoolean(key: String): Boolean? =
+        if (!has(key) || isNull(key)) null else optBoolean(key, false)
 
     private fun strokeToJson(stroke: StrokeSettings): JSONObject = JSONObject().apply {
         put("enabled", stroke.enabled)
