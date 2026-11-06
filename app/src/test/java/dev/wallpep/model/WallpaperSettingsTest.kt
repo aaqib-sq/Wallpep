@@ -41,6 +41,16 @@ class WallpaperSettingsTest {
         assertTrue(defaults.copy(dateOverForeground = true).dateOverForeground)
     }
 
+    @Test fun autoRotateIntervalIsClampedAndDefaultsToTwelveHours() {
+        assertEquals(12, WallpaperSettings().autoRotateIntervalHours)
+        assertEquals(0, WallpaperSettings(autoRotateIntervalHours = -10).sanitized().autoRotateIntervalHours)
+        assertEquals(
+            WallpaperSettings.MAX_ROTATE_INTERVAL_HOURS,
+            WallpaperSettings(autoRotateIntervalHours = 10_000).sanitized().autoRotateIntervalHours,
+        )
+        assertEquals(6, WallpaperSettings(autoRotateIntervalHours = 6).sanitized().autoRotateIntervalHours)
+    }
+
     @Test fun typographyColourAndOpacityAreClamped() {
         val s = WallpaperSettings(
             clockSizeSp = 5,

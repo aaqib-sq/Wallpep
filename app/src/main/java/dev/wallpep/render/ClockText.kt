@@ -5,9 +5,20 @@ import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 
-/** The hour range is identified by formatting fields, not by assuming a colon or ASCII digits. */
-internal data class ClockText(val text: String, val hourStart: Int, val hourEnd: Int) {
+/**
+ * The hour range is identified by formatting fields, not by assuming a colon or ASCII digits, and
+ * the seconds range is tracked for the explicit seconds formats so it can carry its own colour.
+ * [secondsStart]/[secondsEnd] stay `-1` when the format renders no seconds part.
+ */
+internal data class ClockText(
+    val text: String,
+    val hourStart: Int,
+    val hourEnd: Int,
+    val secondsStart: Int = -1,
+    val secondsEnd: Int = -1,
+) {
     val hasHour: Boolean get() = hourStart >= 0 && hourEnd > hourStart
+    val hasSeconds: Boolean get() = secondsStart >= 0 && secondsEnd > secondsStart
 }
 
 internal fun formatClock(formatter: SimpleDateFormat, date: Date): ClockText {

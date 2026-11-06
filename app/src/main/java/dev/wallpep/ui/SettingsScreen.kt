@@ -34,6 +34,7 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
     private lateinit var battery: SwitchRow
     private lateinit var animations: SwitchRow
     private lateinit var animationStyle: LinkRow
+    private lateinit var autoRotate: LinkRow
     private lateinit var cacheValue: TextView
     private lateinit var versionValue: TextView
 
@@ -101,6 +102,8 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         }
         animationStyle = activity.linkRow("Animation Style", "") { showAnimationStyles() }
         wallpaper.addView(animationStyle.root, activity.full(top = 10))
+        autoRotate = activity.linkRow("Auto Rotate Interval", "") { showAutoRotateInterval() }
+        wallpaper.addView(autoRotate.root, activity.full(top = 10))
         wallpaper.addView(
             activity.linkRow("Wallpaper keeps resetting?", "Why a device may restore its own wallpaper") { showResetHelp() }.root,
             activity.full(top = 10),
@@ -172,8 +175,11 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
         animations.render(settings.clockAnimations, enabled)
         animationStyle.value.text = settings.animationStyle.label
         animationStyle.value.visibility = View.VISIBLE
+        autoRotate.value.text = autoRotateLabel(settings.autoRotateIntervalHours)
+        autoRotate.value.visibility = View.VISIBLE
         versionValue.text = listener.appVersion()
         animationStyle.root.alpha = if (enabled) 1f else 0.45f
+        autoRotate.root.alpha = if (enabled) 1f else 0.45f
     }
 
     private fun act(write: (WallpaperSettings) -> WallpaperSettings) {
@@ -205,6 +211,28 @@ class SettingsScreen(private val activity: ComponentActivity, private val listen
             .setTitle("Animation Style")
             .setSingleChoiceItems(labels, styles.indexOf(current)) { dialog, which ->
                 act { it.copy(animationStyle = styles[which], clockAnimations = true) }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun autoRotateLabel(hours: Int): String = when (hours) {
+        0 -> "Off"
+        1 -> "Every hour"
+        else -> "Every $hours hours"
+    }
+
+    private fun showAutoRotateInterval() {
+        val values = intArrayOf(0, 1, 3, 6, 12, 24, 48)
+        val labels = values.map { autoRotateLabel(it) }.toTypedArray()
+        val current = listener.currentSettings().autoRotateIntervalHours
+        val index = values.indexOf(current).takeIf { it >= 0 } ?: values.indexOf(12)
+        AlertDialog.Builder(activity)
+            .setTitle("Auto Rotate Interval")
+            .setMessage("Cycles your saved wallpapers one after another, in the order you saved them. Saved collection only — with nothing saved, nothing rotates.")
+            .setSingleChoiceItems(labels, index) { dialog, which ->
+                act { it.copy(autoRotateIntervalHours = values[which]) }
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)

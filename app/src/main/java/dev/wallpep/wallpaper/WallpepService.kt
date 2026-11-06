@@ -15,17 +15,28 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.provider.Settings
 import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.Choreographer
+import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.View
+import kotlin.math.abs
 import dev.wallpep.cutout.CutoutCoordinator
 import dev.wallpep.cutout.CutoutState
+import dev.wallpep.model.AutoRotate
+import dev.wallpep.model.EffectStyle
 import dev.wallpep.model.WallpaperSettings
 import dev.wallpep.render.WallpaperScene
 import dev.wallpep.storage.BackgroundStore
+import dev.wallpep.storage.DesignStore
+import dev.wallpep.storage.RotationStore
+import dev.wallpep.storage.SavedDesign
 import dev.wallpep.storage.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -69,6 +80,16 @@ class WallpepService : WallpaperService() {
         private var requestedImage = false
         private var lastImageName: String? = null
         private var loadedReadyCutout = false
+        private val designStore by lazy { DesignStore(applicationContext) }
+        private val rotationStore by lazy { RotationStore(applicationContext) }
+        @Volatile private var baseSettings: WallpaperSettings? = null
+        @Volatile private var collectionDesigns: List<SavedDesign> = emptyList()
+        @Volatile private var rotationCursor: Int = -1
+        private var sensorManager: SensorManager? = null
+        private var sensorListener: SensorEventListener? = null
+        private var lastTiltX = 0f
+        private var lastTiltY = 0f
+        private var particlesArmed = false
 
         private val fallbackColors = WallpaperColors(Color.valueOf(0xff263f34.toInt()), null, null)
         @Volatile private var cachedColors: WallpaperColors = fallbackColors
@@ -106,8 +127,29 @@ class WallpepService : WallpaperService() {
         private val minuteTick = object : Runnable {
             override fun run() {
                 if (!running || !gate.canRender) return
+                activeScope?.launch {
+                    evaluateRotation(System.currentTimeMillis())
+                    applyEffectiveSettings()
+                }
                 requestFrame()
                 scheduleMinute()
+            }
+        }
+
+        // Particles need continuous frames; the loop only exists while the engine is visible.
+        private val particleTick = object : Runnable {
+            override fun run() {
+                if (!running || !gate.canRender) {
+                    particlesArmed = false
+                    return
+                }
+                val style = effectiveSettings().effectStyle
+                if (style != EffectStyle.NONE && power.isInteractive) {
+                    requestFrame()
+                    main.postDelayed(this, FRAME_INTERVAL_MS)
+                } else {
+                    particlesArmed = false
+                }
             }
         }
 
@@ -254,32 +296,40 @@ class WallpepService : WallpaperService() {
                 Settings.System.getUriFor(Settings.System.TIME_12_24), false, timeFormatObserver,
             )
             signalsRegistered = true
+            rotationCursor = -1
+            baseSettings = null
+            collectionDesigns = emptyList()
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             activeScope = scope
             scope.launch {
                 try {
                     settingsRepository.snapshots.collect { snapshot ->
                         if (!running || !gate.canRender) return@collect
-                        val settings: WallpaperSettings = snapshot.settings
-                        scene.settings = settings
-                        if (!requestedImage || lastImageName != settings.backgroundName) {
-                            requestedImage = true
-                            lastImageName = settings.backgroundName
-                            loadedReadyCutout = settings.backgroundName?.let {
-                                CutoutCoordinator.states.value[it] == CutoutState.READY
-                            } == true
-                            loadBackground(settings.backgroundName)
-                            // Also migrates a Phase 1 photo when the visible engine starts, even
-                            // if the settings activity has not been opened since the update.
-                            CutoutCoordinator.ensure(applicationContext, settings.backgroundName)
-                        }
-                        requestFrame()
+                        baseSettings = snapshot.settings
+                        evaluateRotation(System.currentTimeMillis())
+                        applyEffectiveSettings()
+                        evaluateParallaxSensor()
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
                     // Storage failures leave the safe fallback; never log image paths or data.
                     Log.w(TAG, "Could not read wallpaper settings")
+                }
+            }
+            scope.launch {
+                try {
+                    designStore.designs.collect { designs ->
+                        if (!running || !gate.canRender) return@collect
+                        collectionDesigns = designs
+                        evaluateRotation(System.currentTimeMillis())
+                        applyEffectiveSettings()
+                        evaluateParallaxSensor()
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    Log.w(TAG, "Could not read the saved collection")
                 }
             }
             scope.launch {
@@ -294,6 +344,149 @@ class WallpepService : WallpaperService() {
             }
             requestFrame()
             scheduleMinute()
+            armParticleLoop()
+        }
+
+        private fun effectiveSettings(): WallpaperSettings {
+            baseSettings?.let { base ->
+                if (base.autoRotateIntervalHours > 0) {
+                    // The cursor survives reboots through RotationStore, so the engine resumes
+                    // on the rotating design instead of reverting to the last hand-edited one.
+                    collectionDesigns.getOrNull(rotationCursor)?.let { return it.settings }
+                }
+            }
+            return baseSettings ?: WallpaperSettings()
+        }
+
+        /**
+         * Advances the collection cycle when it is due and persists the next due instant.
+         * Called from the settings/collection collectors, the minute tick and startRendering.
+         */
+        private suspend fun evaluateRotation(now: Long) {
+            val base = baseSettings ?: return
+            val designs = collectionDesigns
+            val intervalHours = base.autoRotateIntervalHours
+            if (intervalHours <= 0 || designs.isEmpty()) {
+                if (rotationCursor != -1 && intervalHours <= 0) rotationCursor = -1
+                return
+            }
+            val stored = rotationStore.read()
+            val normalized = stored.copy(cursor = stored.cursor.takeIf { it in designs.indices } ?: -1)
+            val decision = AutoRotate.decide(now, intervalHours, designs.size, normalized)
+            if (decision.state != normalized) rotationStore.write(decision.state)
+            rotationCursor = decision.state.cursor
+        }
+
+        private fun applyEffectiveSettings() {
+            if (!running || !gate.canRender) return
+            val effective = effectiveSettings()
+            scene.settings = effective
+            if (!requestedImage || lastImageName != effective.backgroundName) {
+                requestedImage = true
+                lastImageName = effective.backgroundName
+                loadedReadyCutout = effective.backgroundName?.let {
+                    CutoutCoordinator.states.value[it] == CutoutState.READY
+                } == true
+                loadBackground(effective.backgroundName)
+                // Also migrates a Phase 1 photo when the visible engine starts, even if the
+                // settings activity has not been opened since the update.
+                CutoutCoordinator.ensure(applicationContext, effective.backgroundName)
+            }
+            armParticleLoop()
+            requestFrame()
+        }
+
+        private fun armParticleLoop() {
+            if (particlesArmed) return
+            if (!running || !gate.canRender) return
+            if (effectiveSettings().effectStyle == EffectStyle.NONE) return
+            particlesArmed = true
+            main.postDelayed(particleTick, FRAME_INTERVAL_MS)
+        }
+
+        private fun evaluateParallaxSensor() {
+            val effective = effectiveSettings()
+            val wantsSensor = effective.parallaxLayersEnabled || effective.parallaxWallpaperEnabled
+            if (!running || !gate.canRender || !wantsSensor) {
+                unregisterSensor()
+                return
+            }
+            if (sensorListener != null) return
+            val manager = getSystemService(SensorManager::class.java) ?: return
+            val sensor = manager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+                ?: manager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+                ?: manager.getDefaultSensor(Sensor.TYPE_GRAVITY)
+                ?: return
+            sensorManager = manager
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent) = onTiltSensor(sensor, event.values)
+                override fun onAccuracyChanged(s: Sensor?, accuracy: Int) = Unit
+            }
+            // SENSOR_DELAY_UI ≈ 16 Hz; plenty for a soft parallax, gentle on the battery.
+            manager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+            sensorListener = listener
+        }
+
+        private fun unregisterSensor() {
+            val listener = sensorListener ?: return
+            try { sensorManager?.unregisterListener(listener) } catch (_: Exception) { }
+            sensorListener = null
+            sensorManager = null
+            lastTiltX = 0f
+            lastTiltY = 0f
+        }
+
+        private fun onTiltSensor(sensor: Sensor, values: FloatArray) {
+            if (!running || !gate.canRender) return
+            val tiltX: Float
+            val tiltY: Float
+            if (sensor.type == Sensor.TYPE_GRAVITY) {
+                val gravity = 9.80665f
+                val gx = values.getOrElse(0) { 0f } / gravity
+                val gy = values.getOrElse(1) { 0f } / gravity
+                val pair = tiltedPair(displayRotation(), gx, gy)
+                tiltX = pair.first
+                tiltY = pair.second
+            } else {
+                val rotationMatrix = FloatArray(9)
+                try {
+                    SensorManager.getRotationMatrixFromVector(rotationMatrix, values)
+                } catch (_: IllegalArgumentException) {
+                    return
+                }
+                val adjusted = FloatArray(9)
+                when (displayRotation()) {
+                    Surface.ROTATION_90 -> SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_MINUS_Y, SensorManager.AXIS_X, adjusted)
+                    Surface.ROTATION_270 -> SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_Y, SensorManager.AXIS_MINUS_X, adjusted)
+                    Surface.ROTATION_180 -> SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_MINUS_X, SensorManager.AXIS_MINUS_Y, adjusted)
+                    else -> System.arraycopy(rotationMatrix, 0, adjusted, 0, 9)
+                }
+                val orientation = FloatArray(3)
+                SensorManager.getOrientation(adjusted, orientation)
+                tiltX = (orientation[2] / MAX_TILT_RADIANS).coerceIn(-1f, 1f)
+                tiltY = (orientation[1] / MAX_TILT_RADIANS).coerceIn(-1f, 1f)
+            }
+            // Critically damped-ish smoothing so the wallpaper glides instead of jittering.
+            val smoothX = 0.65f * lastTiltX + 0.35f * tiltX
+            val smoothY = 0.65f * lastTiltY + 0.35f * tiltY
+            if (abs(smoothX - lastTiltX) < 0.004f && abs(smoothY - lastTiltY) < 0.004f) return
+            lastTiltX = smoothX
+            lastTiltY = smoothY
+            scene.setTilt(smoothX, smoothY)
+            requestFrame()
+        }
+
+        private fun tiltedPair(rotation: Int, gx: Float, gy: Float): Pair<Float, Float> = when (rotation) {
+            Surface.ROTATION_90 -> gy to -gx
+            Surface.ROTATION_270 -> -gy to gx
+            Surface.ROTATION_180 -> -gx to -gy
+            else -> gx to -gy
+        }
+
+        private fun displayRotation(): Int = try {
+            this@WallpepService.display?.rotation ?: Surface.ROTATION_0
+        } catch (_: Exception) {
+            Surface.ROTATION_0
         }
 
         private fun stopRendering() {
@@ -312,6 +505,9 @@ class WallpepService : WallpaperService() {
                 contentResolver.unregisterContentObserver(timeFormatObserver)
                 signalsRegistered = false
             }
+            main.removeCallbacks(particleTick)
+            particlesArmed = false
+            unregisterSensor()
             // Per-engine scaled bitmap is never retained while hidden or surface-less.
             scene.release()
         }
@@ -401,5 +597,10 @@ class WallpepService : WallpaperService() {
         )
     }
 
-    companion object { private const val TAG = "Wallpep" }
+    companion object {
+        private const val TAG = "Wallpep"
+        private const val FRAME_INTERVAL_MS = 33L
+        // ~34 degrees of physical tilt reaches full parallax travel.
+        private const val MAX_TILT_RADIANS = 0.6f
+    }
 }

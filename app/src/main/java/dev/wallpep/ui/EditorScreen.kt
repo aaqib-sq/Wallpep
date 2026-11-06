@@ -2,6 +2,7 @@ package dev.wallpep.ui
 
 import android.app.AlertDialog
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.widget.Button
@@ -32,9 +33,10 @@ import java.util.Locale
  * (Clock, Date, Text, Transform, Colorize, Parallax, Effects), every control unlocked and every
  * control writing its value into the persisted settings document.
  *
- * Clock, date and the depth sandwich keep rendering in the live preview; the engine work for
- * text drawing, transform warp, colorize, parallax and particles arrives in later slices, so
- * those controls persist their values without a dead "coming soon" affordance.
+ * Clock, date, the text layer and the depth sandwich all render in the live preview, along
+ * with transform warps, colorize, drag-simulated parallax and the particle effects; every
+ * persisted setting in those areas shows its effect immediately. The Collection tab reuses the
+ * same scene, so no separate "preview engine" ships.
  */
 class EditorScreen(private val activity: ComponentActivity, private val listener: Listener) {
 
@@ -306,6 +308,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         }
         previewFrame = frame
         frame.addView(scene, FrameLayout.LayoutParams(-1, -1))
+        armParallaxDrag(frame)
         photoStatus = activity.uiText("", 9.5f, Pulse.MUTED).apply {
             maxLines = 2
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -632,6 +635,10 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
 
         val colors = section("Colors")
         switch(colors, "Enable Gradient", read = { it.text.gradientEnabled }, write = { s, on -> s.copy(text = s.text.copy(gradientEnabled = on)) })
+        slider(
+            colors, "Gradient angle", 0, 360, format = { "$it°" },
+            read = { it.text.gradientAngle }, write = { s, value -> s.copy(text = s.text.copy(gradientAngle = value)) },
+        )
         colorPicker(
             colors, "Primary color", read = { it.text.color },
             write = { s, c -> s.copy(text = s.text.copy(color = c ?: TextColors.WHITE)) },
@@ -1296,6 +1303,39 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     }
 
     /**
+     * Drag-to-tilt: a pointer drag maps to the simulated tilt the scene applies to the wallpaper
+     * and the individual layers (the same channel the live wallpaper drives from the gyroscope),
+     * so the saved parallax strengths become visible without leaving the editor.
+     */
+    private fun armParallaxDrag(frame: View) {
+        var downX = 0f
+        var downY = 0f
+        frame.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val halfWidth = (view.width / 2f).coerceAtLeast(1f)
+                    val halfHeight = (view.height / 2f).coerceAtLeast(1f)
+                    scene.setTilt(
+                        ((event.x - downX) / halfWidth).coerceIn(-1f, 1f),
+                        ((event.y - downY) / halfHeight).coerceIn(-1f, 1f),
+                    )
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    scene.releaseTilt()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    /**
      * The full-screen preview moves the one live scene instead of decoding the photo twice, so
      * there is a single owner of the bitmaps and nothing can draw a recycled image.
      */
@@ -1303,6 +1343,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         val overlay = if (::fullscreenOverlay.isInitialized) fullscreenOverlay else buildFullscreen()
         if (scene.parent === previewFrame) previewFrame.removeView(scene)
         if (scene.parent == null) overlay.addView(scene, FrameLayout.LayoutParams(-1, -1))
+        previewFrame.visibility = View.INVISIBLE
         scene.settings = listener.currentSettings()
         overlay.visibility = View.VISIBLE
         overlay.bringToFront()
@@ -1313,6 +1354,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         fullscreenOverlay.visibility = View.GONE
         if (scene.parent === fullscreenOverlay) fullscreenOverlay.removeView(scene)
         if (scene.parent == null) previewFrame.addView(scene, FrameLayout.LayoutParams(-1, -1))
+        previewFrame.visibility = View.VISIBLE
         scene.settings = listener.currentSettings()
     }
 
@@ -1366,6 +1408,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
                 marginEnd = activity.dp(16)
             },
         )
+        armParallaxDrag(overlay)
         overlay.visibility = View.GONE
         return overlay
     }

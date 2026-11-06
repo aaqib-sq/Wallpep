@@ -94,6 +94,7 @@ class StyleTest {
                 letterSpacing = 99,
                 color = 0,
                 font = "not-a-font",
+                gradientAngle = 999,
             ),
         ).sanitized()
         assertEquals(TextLayerSettings.MAX_CONTENT, settings.text.content.length)
@@ -102,6 +103,7 @@ class StyleTest {
         assertEquals(0, settings.text.positionX)
         assertEquals(100, settings.text.positionY)
         assertEquals(WallpaperSettings.MAX_LETTER_SPACING, settings.text.letterSpacing)
+        assertEquals(360, settings.text.gradientAngle)
         assertEquals(TextColors.WHITE, settings.text.color)
         assertFalse(settings.text.font == "not-a-font")
     }
