@@ -5,7 +5,7 @@ import java.util.Locale
 /** Left / centre / right anchoring for a text layer. */
 enum class TextAlignment { LEFT, CENTER, RIGHT }
 
-/** The particle look for the Effects tab; persisted now, drawn by a later engine slice. */
+/** The particle look for the Effects tab; drawn by the shared particle system in `WallpaperScene`. */
 enum class EffectStyle(val label: String) { NONE("None"), RAIN("Rain"), SNOW("Snow"), SAKURA("Sakura") }
 
 /** Stroke outline style for a text layer. */
@@ -125,7 +125,10 @@ data class TransformSettings(
     }
 }
 
-/** The optional third text layer. Everything here is persisted; drawing lands later. */
+/**
+ * The optional third text layer. Everything here is persisted and rendered by `WallpaperScene`.
+ * `gradientAngle` is in degrees: 0° sweeps left to right, 90° sweeps top to bottom.
+ */
 data class TextLayerSettings(
     val enabled: Boolean = false,
     val content: String = "",
@@ -136,6 +139,7 @@ data class TextLayerSettings(
     val color: Int = TextColors.WHITE,
     val secondaryColor: Int = TextColors.MIST,
     val gradientEnabled: Boolean = false,
+    val gradientAngle: Int = 90,
     val opacity: Int = 100,
     val positionX: Int = 50,
     val positionY: Int = 50,
@@ -151,6 +155,7 @@ data class TextLayerSettings(
         letterSpacing = letterSpacing.coerceIn(0, WallpaperSettings.MAX_LETTER_SPACING),
         color = TextColors.sanitize(color, TextColors.WHITE),
         secondaryColor = TextColors.sanitize(secondaryColor, TextColors.MIST),
+        gradientAngle = gradientAngle.coerceIn(0, 360),
         opacity = opacity.coerceIn(WallpaperSettings.MIN_OPACITY, 100),
         positionX = positionX.coerceIn(0, 100),
         positionY = positionY.coerceIn(0, 100),

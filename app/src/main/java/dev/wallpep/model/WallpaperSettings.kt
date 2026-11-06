@@ -115,6 +115,8 @@ data class WallpaperSettings(
     val batteryWhileCharging: Boolean = false,
     val clockAnimations: Boolean = false,
     val animationStyle: AnimationStyle = AnimationStyle.FADE_AND_SCALE,
+    // Hours between automatic changes of the live wallpaper; 0 turns the cycle off.
+    val autoRotateIntervalHours: Int = 12,
     // ---------------------------------------------------------------- background photo
     val backgroundName: String? = null,
     // Additive schema-1 preferences: missing keys from Phase 1 default behind the cutout.
@@ -163,6 +165,7 @@ data class WallpaperSettings(
         brightness = brightness.coerceIn(0, 200),
         parallaxLayersStrength = parallaxLayersStrength.coerceIn(0, 100),
         parallaxWallpaperStrength = parallaxWallpaperStrength.coerceIn(0, 100),
+        autoRotateIntervalHours = autoRotateIntervalHours.coerceIn(0, MAX_ROTATE_INTERVAL_HOURS),
         effectSpeed = effectSpeed.coerceIn(MIN_EFFECT_SPEED, MAX_EFFECT_SPEED),
         effectAngle = effectAngle.coerceIn(0, 360),
         effectParticles = effectParticles.coerceIn(MIN_EFFECT_PARTICLES, MAX_EFFECT_PARTICLES),
@@ -189,6 +192,8 @@ data class WallpaperSettings(
         const val MAX_EFFECT_PARTICLES = 200
         const val MIN_EFFECT_SIZE = 5
         const val MAX_EFFECT_SIZE = 100
+        /** Seven days; 0 is reserved for "auto rotate off". */
+        const val MAX_ROTATE_INTERVAL_HOURS = 168
     }
 }
 
