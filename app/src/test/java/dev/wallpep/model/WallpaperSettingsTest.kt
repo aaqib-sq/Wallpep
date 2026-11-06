@@ -16,7 +16,7 @@ class WallpaperSettingsTest {
             positionY = 150,
             backgroundName = "../../secret.jpg",
         ).sanitized()
-        assertEquals(TextColors.WHITE, s.textColor)
+        assertEquals(0, s.textColor)
         assertEquals(120, s.clockSizeSp)
         assertEquals(0, s.positionX)
         assertEquals(100, s.positionY)
@@ -71,7 +71,7 @@ class WallpaperSettingsTest {
         assertEquals(100, s.dateOpacity)
         assertEquals(0, s.datePositionX)
         assertEquals(100, s.datePositionY)
-        assertNull(s.dateColor)
+        assertEquals(0x123456, s.dateColor)
     }
 
     @Test fun dateColourFollowsTheClockUntilItIsOverridden() {

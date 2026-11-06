@@ -648,6 +648,10 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
             write = { s, c -> s.copy(text = s.text.copy(secondaryColor = c ?: TextColors.MIST)) },
         )
         slider(
+            colors, "Gradient angle", 0, 360, format = { "$it°" },
+            read = { it.text.gradientAngle }, write = { s, value -> s.copy(text = s.text.copy(gradientAngle = value)) },
+        )
+        slider(
             colors, "Opacity", WallpaperSettings.MIN_OPACITY, 100, format = { String.format(Locale.ROOT, "%.1f", it.toFloat()) },
             read = { it.text.opacity }, write = { s, value -> s.copy(text = s.text.copy(opacity = value)) },
         )
@@ -1112,14 +1116,19 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
         read: (WallpaperSettings) -> Int?,
         write: (WallpaperSettings, Int?) -> WallpaperSettings,
     ) {
-        parent.addView(activity.uiText(label, 12f, Pulse.MUTED), activity.full(top = 10))
-        val row = activity.swatchRow(allowAuto) { color -> act { s -> write(s, color) } }
-        parent.addView(row.root)
-        val offset = if (allowAuto) 1 else 0
+        val row = activity.linkRow(label, "") {
+            if (listener.canInteract()) {
+                val current = read(listener.currentSettings())
+                showColorPicker(activity, label, current ?: listener.currentSettings().textColor, allowAuto) { color ->
+                    act { s -> write(s, color) }
+                }
+            }
+        }
+        addRow(parent, row.root)
+        interactive.add(row.root)
         binders.add { settings ->
-            val color = read(settings)
-            val index = color?.let { TextColors.all.indexOf(it) }?.takeIf { it >= 0 }?.plus(offset)
-            if (index != null) row.render(index) else row.render(if (allowAuto) 0 else null)
+            row.value.text = read(settings)?.let { String.format(Locale.ROOT, "#%08X", it) } ?: "Follow clock"
+            row.value.visibility = View.VISIBLE
         }
     }
 

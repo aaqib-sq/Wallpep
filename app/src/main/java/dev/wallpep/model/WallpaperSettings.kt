@@ -8,8 +8,7 @@ const val SETTINGS_SCHEMA_VERSION = 1
 enum class TimeStyle { SYSTEM, TWELVE_HOUR, TWENTY_FOUR_HOUR }
 
 /**
- * The app's own text palette. Every colour a layer can use comes from here so a stored value
- * can always be validated. These are neutral ink/blue tones: no gold anywhere in the app.
+ * Convenient starting colours. Custom colours are stored as unrestricted ARGB integers.
  */
 object TextColors {
     const val WHITE: Int = -0x1
@@ -32,7 +31,8 @@ object TextColors {
         "White", "Mist", "Steel", "Rose", "Sky", "Electric blue", "Deep blue", "Slate", "Grey", "Ink", "Black",
     )
 
-    fun sanitize(color: Int, fallback: Int): Int = color.takeIf { it in all } ?: fallback
+    @Suppress("UNUSED_PARAMETER")
+    fun sanitize(color: Int, fallback: Int): Int = color
 
     fun label(color: Int): String = labels.getOrElse(all.indexOf(color)) { "Colour" }
 }
@@ -146,7 +146,7 @@ data class WallpaperSettings(
         clockTransform = clockTransform.sanitized(),
         dateFormat = DateFormats.pattern(dateFormat),
         dateFont = FontCatalog.sanitizeDateId(dateFont),
-        dateColor = dateColor?.takeIf { it in TextColors.all },
+        dateColor = dateColor,
         dateSecondaryColor = TextColors.sanitize(dateSecondaryColor, TextColors.MIST),
         dateGradientAngle = dateGradientAngle.coerceIn(0, 360),
         dateSizeSp = dateSizeSp.coerceIn(MIN_DATE_SIZE, MAX_DATE_SIZE),
@@ -182,8 +182,8 @@ data class WallpaperSettings(
         const val MAX_DATE_SIZE = 72
         /** Hundredths of an em: 30 = 0.30 em. */
         const val MAX_LETTER_SPACING = 30
-        /** Percent. A layer is never fully invisible, so its slider always leaves something. */
-        const val MIN_OPACITY = 10
+        /** Percent, including fully transparent. */
+        const val MIN_OPACITY = 0
         const val MIN_VERTICAL_SPACING = 0
         const val MAX_VERTICAL_SPACING = 40
         const val MIN_EFFECT_SPEED = 1

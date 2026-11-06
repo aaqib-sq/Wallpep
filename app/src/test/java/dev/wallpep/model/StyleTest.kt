@@ -45,7 +45,7 @@ class StyleTest {
             assertEquals(format.id, format.label)
             SimpleDateFormat(format.id, Locale.US).format(date)
         }
-        assertEquals(8, DateFormats.all.size)
+        assertEquals(11, DateFormats.all.size)
         assertEquals(DateFormats.all.size, DateFormats.all.map { it.id }.toSet().size)
     }
 
@@ -61,7 +61,7 @@ class StyleTest {
         val stroke = StrokeSettings(width = 900, gradientAngle = -20, color = 7).sanitized()
         assertEquals(StrokeSettings.MAX_WIDTH, stroke.width)
         assertEquals(0, stroke.gradientAngle)
-        assertEquals(TextColors.WHITE, stroke.color)
+        assertEquals(7, stroke.color)
         val shadow = ShadowSettings(blur = 400, offsetX = -900, offsetY = 900, opacity = 500).sanitized()
         assertEquals(ShadowSettings.MAX_BLUR, shadow.blur)
         assertEquals(ShadowSettings.MIN_OFFSET, shadow.offsetX)
@@ -104,15 +104,15 @@ class StyleTest {
         assertEquals(100, settings.text.positionY)
         assertEquals(WallpaperSettings.MAX_LETTER_SPACING, settings.text.letterSpacing)
         assertEquals(360, settings.text.gradientAngle)
-        assertEquals(TextColors.WHITE, settings.text.color)
+        assertEquals(0, settings.text.color)
         assertFalse(settings.text.font == "not-a-font")
     }
 
-    @Test fun everyPaletteColourRoundTripsAndUnknownOnesFallBack() {
+    @Test fun everyArgbColourIsPreserved() {
         TextColors.all.forEach { color ->
             assertEquals(color, TextColors.sanitize(color, TextColors.WHITE))
         }
-        assertEquals(TextColors.WHITE, TextColors.sanitize(0x000000, TextColors.WHITE))
+        assertEquals  (0x000000, TextColors.sanitize(0x000000, TextColors.WHITE))
         assertEquals(TextColors.all.size, TextColors.labels.size)
         assertNotEquals(TextColors.WHITE, TextColors.BLUE)
         assertEquals("Electric blue", TextColors.label(TextColors.BLUE))
@@ -123,7 +123,7 @@ class StyleTest {
         assertEquals(EffectStyle.SAKURA, storedEnum("sakura", EffectStyle.NONE))
         assertEquals(EffectStyle.NONE, storedEnum("HURRICANE", EffectStyle.NONE))
         assertEquals(AnimationStyle.FADE_AND_SCALE, storedEnum(null, AnimationStyle.FADE_AND_SCALE))
-        assertTrue(AnimationStyle.entries.size >= 18)
+        assertEquals(18, AnimationStyle.entries.count { it.selectable })
         assertEquals(AnimationStyle.entries.size, AnimationStyle.entries.map { it.label }.toSet().size)
     }
 }
