@@ -1,23 +1,157 @@
 # Settings parity work
 
-Base: `origin/main` at `28761f97d2903db02ca9eb63d29c0ef4dd2e6001`, verified against GitHub and fetched before starting this slice.
+Base: `origin/main` at `4394c23a43d0647af0b3cd4dc08912302cb35322`, verified with the GitHub CLI
+(`gh api repos/aaqib-sq/Wallpep/commits/main`, `gh pr list --state merged`) and freshly fetched
+before branching. PR #8 (settings parity) and PR #9 (live preview + Auto Rotate) are both merged
+into that commit; PR #9's merge commit `2e8caff5` is an ancestor of main. This branch is off that
+fresh main. No push to main, no merge.
 
-## Historical coverage before the rebase (31 / 159)
+## Audit before counting (important: the brief's 128/159 is stale)
 
-The following count and remaining list were recorded before rebasing onto main's merged live-preview and Auto Rotate work. They are retained as historical context, not a current coverage claim; the combined behavior has not yet been fully audited. Main now contains rendering for text, gradients, strokes, shadows, transforms, colorization, particles and parallax, so statements in the historical list about absent rendering no longer describe the rebased branch. This count required a control and the relevant output behavior to exist, not merely a persisted value. Device behavior remains unverified. Inventory numbers refer to the supplied DepthX inventory. Existing working features counted: clock #1, #3–7, #13–18; date #48–51, #53–54, #59–62; app/flow #149, #152–159. Date #52 is not counted because the reference screenshot's 6.6 size has no confirmed conversion to Wallpep's sp units; #2 is not counted because some seconds formats don't format or update correctly. No undocumented values are asserted as DepthX defaults.
+The brief for this slice starts from the historical "31 / 159 done, 128 remaining" figure. That
+number was recorded **before** main merged PR #9, and the previous version of this document already
+flagged it as historical context, not a current coverage claim. We re-audited the fresh main from
+source before writing anything:
 
-Remaining (128):
+- `WallpaperScene` is the single render path for the editor preview (`EditorScreen.scene`),
+  collection thumbnails (`MainActivity.renderThumbnail`) and the applied wallpaper
+  (`WallpepService` → `scene.draw(canvas)`). It draws the custom text layer, gradients, strokes,
+  shadows, 2D/projective transforms, colorize, particles, parallax tilt and the depth sandwich.
+- `EditorScreen` has all seven tabs in the required order and writes every control into the single
+  settings document; `SettingsCodec` round-trips every field; `WallpepService` observes that
+  document.
+- **Therefore scope items 1–3 of the brief (text layer #90–128, clock/date renderer consumption,
+  colorize/particles/parallax) are already implemented on main.** This slice does **not** re-claim
+  or re-implement them. Claiming them again would be dishonest.
 
-- Clock #2, #8–12, #19–47: full format behavior, ARGB alpha/secondary/seconds/gradients, stroke, shadow, transforms, unknown clock-style vocabulary, and tilt. Color controls and model values exist, but the renderer does not consume these features.
-- Date #52, #55–58, #63–89: reference size units/default, color alpha/gradient, stroke, shadow, transforms and parallax. Controls and model values mostly exist; output is not complete.
-- Text #90–128: controls and model values exist, but the text layer and its styling are not drawn. One editable text layer exists; multiple independent layers do not.
-- Colorize #129–133, particles #134–140 and parallax #141–144: controls and model values exist, but the engine does not apply them. The inventory also flags that a fresh sensor decision is required; no sensor was added here.
-- App #145–148, #150–151: lock/home visibility, charging battery display and animation have controls but are not implemented in the engine; the 24-hour toggle now reflects the device when the stored value is SYSTEM, but remains tied to the current design instead of a truly global app preference. Animation choices match the 18 named inventory styles, with old stored enum names kept readable.
+The honest remaining work on this base is: (a) a full per-item audit, (b) a small set of real
+defects found during that audit (below), and (c) the deliberately deferred items that the brief
+says not to start.
 
-This continuation fixes the independently rebuilt Transform and Parallax controls losing each other's bindings. The font picker now offers all 185 bundled files using stable, validated IDs while keeping old family IDs readable; variable-font axes are not separately exposed. Date letter spacing defaults to 0.07 em and date vertical position to 14.4%, with tenths precision; older stored values are retained. The clock format model exposes the correct independent seconds separator, but the existing renderer has not yet consumed it. Choosing an animation style no longer silently enables animations.
+## Counting rule
 
-The full color dialog now stores any ARGB value for all current fill, stroke, shadow and particle color fields; it has hue, saturation, brightness, opacity and RGB/ARGB hex entry. Text gradient angle is also persisted. The merged preview renderer consumes these settings. The rebase integration multiplies each picked color's alpha by the layer/effect opacity rather than overwriting it; a device-level visual check is still needed.
+An item is counted **only** when all three exist: a usable control, persistence (or an in-code
+default with no UI state to persist), and actual output behaviour in the renderer/service — not
+merely a stored value. A visual/device check is **not** available in this environment; source-level
+consumption is what is counted, with the caveats listed below. Inventory numbers refer to the
+supplied `depthx-settings-inventory.md`.
 
-## Flow review
+## Coverage: 149 / 159 (10 remaining)
 
-Source review: the photo picker imports a private image and schedules a cutout; editor changes feed the shared settings document and collection record; the wallpaper service observes the settings and loads the photo/cutout. Apply now waits for both writes before opening the Android chooser and does not open it after a write failure. The merged scene contains photo, clock, date, text and particle drawing and the cutout depth plan. The full flow, service chooser and actual output were not exercised on a device or emulator; end-to-end completion is not verified. The two DataStores are separate writes, not an atomic transaction.
+| Group | Counted | Numbers |
+|---|---|---|
+| Clock | 44 | #1–44 |
+| Date | 40 | #48–87 |
+| Text layers | 39 | #90–128 |
+| Colorize | 5 | #129–133 |
+| Effects / particles | 7 | #134–140 |
+| Parallax | 4 | #141–144 |
+| App settings, guides, library | 6 | #148, #149, #152–155 |
+| Custom photo flow | 4 | #156–159 |
+| **Total** | **149** | |
+
+Per-group verification notes (control → persistence → output):
+
+- **Clock #1–44.** `showClock`, all 17 `ClockFormats` entries (including the 12 listed formats,
+  seconds variants, AM/PM marker and stacked rows), font family/size/letter spacing/alignment/
+  vertical spacing, ARGB primary + secondary + seconds colours, gradient + angle, opacity, X/Y,
+  the three over-foreground flips, all eight stroke fields (including seconds stroke colour and
+  dashed/dotted styles), all eight shadow fields (including flip H/V), and all ten transform
+  fields are consumed by `WallpaperScene.prepareClockParts` / `stackedClockParts` / `ink` /
+  `inkStroke` / `centerWarp`, with the plan from `DepthPlan`. #2 gains a real per-second redraw in
+  this slice (see below). #7's vertical spacing applies to the stacked formats, which are the
+  layouts that have separate rows.
+- **Date #48–87.** `prepareDateLayer` consumes the same family (no seconds colours, matching the
+  inventory), plus date-specific format/uppercase/follow-clock colour. #52 is counted because the
+  font-size control changes the rendered date; the reference screenshot's `6.6` value is **not**
+  claimed as a converted Wallpep default — Wallpep's unit is sp.
+- **Text #90–128.** `prepareTextLayer` plus `depthPlan` consume the enabled flag, content, font,
+  size, letter spacing, alignment, gradient + angle, opacity, X/Y, over-foreground, stroke family,
+  shadow family and transform family. Caveat: **one** editable text layer exists; several
+  independent layers (each with its own id, as the inventory describes) do not.
+- **Colorize #129–133.** `applyColorize` folds hue rotation + hue + saturation + grayscale +
+  brightness into one `ColorMatrix` applied to the photo, the foreground cutout and (after this
+  slice) the built-in backdrop on every frame.
+- **Effects #134–140.** `drawParticles` consumes type, speed, angle, density, size, colour and
+  opacity; the engine's visible-only particle loop drives the frames.
+- **Parallax #141–144.** Scene tilt shifts layers and wallpaper with independent strengths; the
+  service's gyroscope listener feeds `setTilt`, the editor drag simulates it. Sensor note below.
+- **App/guides #148, #149, #152–155.** 24-hour clock switches the rendered digits via
+  `use24Hour()`; the hide-system-clock and wallpaper-reset help rows, clear cache, the 185-face
+  Google Fonts picker and the minimal About row are all real. Caveat for #148: the value lives in
+  the per-design settings document rather than a separate global app preference, so under Auto
+  Rotate the currently rotating design's own `timeStyle` wins.
+- **Flow #156–159.** Photo picker → private copy → on-device MODNet cutout → depth sandwich with
+  over-foreground flips → seven-tab editor → save/apply. The two DataStore writes are separate,
+  not a transaction; end-to-end completion on a device is not verified.
+
+## Remaining (10)
+
+- **#45 Clock style** — no style-selector control; the field's value vocabulary was never
+  recovered. Wallpep offers inline and stacked formats instead. Unclear item, not guessed.
+- **#46, #47, #88, #89 per-layer clock/date parallax on/off + strength** — no per-layer controls or
+  persisted fields. Main ships the global "Clock, Date & Text" and "Wallpaper" parallax pairs
+  (#141–144) instead. The inventory's §F note says the layer-side fields need a fresh product
+  decision; this slice adds no new sensor and makes no new decision (see note below).
+- **#145 Show content on lockscreen / #146 Show content on homescreen** — controls and persistence
+  exist, but the engine does not gate clock/date/text by target surface. **Untouched**, per the
+  brief. (The existing `RenderGate.lockOnly` rule is a Phase 1 "never draw a lock-only engine"
+  safety rule, not this content gate.)
+- **#147 Show battery % while charging** — control and persistence only; **no render path exists**
+  (no battery receiver feeds a value into the scene). Deliberately not started, per the brief.
+- **#150 Enable clock animations / #151 Animation Style (18 styles)** — all 18 names are
+  selectable and persisted, but the **transition engine is deliberately deferred**; no entrance
+  animation runs. Deliberately not started, per the brief.
+
+**Still save-only, with reasons:** #145, #146 (surface gating untouched), #147 (no render path),
+#150, #151 (transition engine deferred). #45 and #46/#47/#88/#89 are not "save-only" — they have
+neither controls nor persisted values yet.
+
+## What this slice actually changes
+
+Code-level fixes found by the audit; none add a dependency, permission, workflow, catalogue,
+paywall or second render path:
+
+1. **#2 seconds formats now update.** `ClockFormats.needsSeconds` drives a wall-clock-aligned
+   per-second frame loop in `WallpepService` and the editor preview tick (`MainActivity`), while
+   settings/rotation work stays on the minute tick. `WallpaperScene`'s layer cache already keyed
+   seconds formats per second, so their seconds were computed but never redrawn without particles.
+   New pure helpers `millisUntilNextSecond` / `nextClockTickDelayMillis` are unit tested.
+2. **Inline clock gradient alignment (#9–12, #25–26).** `drawStaticLine` translates the canvas
+   before drawing the `StaticLayout`, but gradients are built in scene coordinates; the shader's
+   local matrix is now offset by that translation so fill and stroke gradients stay over the glyphs
+   instead of clamping to one end colour. Date, text and stacked clock paths draw at absolute
+   coordinates and were already correct.
+3. **Colorize on the built-in backdrop (#129–133).** `drawBackground` cleared `fillPaint`'s colour
+   filter at the end of each frame while `applyColorize` caches by value, so the synthetic backdrop
+   lost the adjustment after the first frame. The filter is now re-read from `imagePaint` each frame
+   and never cleared. The photo path was already correct.
+4. **#99 duplicate control removed.** The Text → Colors card had two identical "Gradient angle"
+   sliders bound to the same field; it now has one.
+5. Unit tests added for the seconds tick helpers and for `ClockFormats.needsSeconds`.
+
+## Parallax / sensor note (not silent)
+
+The inventory §F note asks for a fresh decision before a gyroscope-driven slice is built. That
+decision was already taken on main by PR #9: `WallpepService` registers a rotation/gravity sensor
+only while visible and only when a parallax toggle is on, with no manifest permission and no new
+dependency. This slice adds **no** sensor and does **not** silently drop the feature: global
+parallax renders in preview, thumbnails and the applied wallpaper. The four per-layer fields
+(#46/#47/#88/#89) remain for a future decision.
+
+## Constraints re-checked
+
+Obsidian black + electric blue #2563EB, no gold; seven tabs in order Clock, Date, Text, Transform,
+Colorize, Parallax, Effects; all settings unlocked (no paywall/Pro/login/ads/analytics/server/
+catalogue); Home shows only the user's own saved wallpapers; minSdk 33 / targetSdk 37; manifest
+requests `BIND_WALLPAPER` only; no new dependencies; no workflow changes; `WallpaperScene` remains
+the only render path.
+
+## Verification limits (stated plainly)
+
+**No device or emulator verification is possible in this environment.** CI (Compile debug APK +
+Unit tests + Android lint) is the only automated check; the shader alignment, colour matrices,
+glyph metrics, gyro tilt and applied-wallpaper output have not been visually confirmed on a device.
+The full photo→cutout→edit→save→apply flow, the system chooser result and Auto Rotate timing are
+likewise not exercised here. Coverage above is a source audit under the stated counting rule, not
+a device claim.

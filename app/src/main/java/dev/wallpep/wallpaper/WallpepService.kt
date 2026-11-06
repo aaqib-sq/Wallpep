@@ -30,6 +30,7 @@ import kotlin.math.abs
 import dev.wallpep.cutout.CutoutCoordinator
 import dev.wallpep.cutout.CutoutState
 import dev.wallpep.model.AutoRotate
+import dev.wallpep.model.ClockFormats
 import dev.wallpep.model.EffectStyle
 import dev.wallpep.model.WallpaperSettings
 import dev.wallpep.render.WallpaperScene
@@ -90,6 +91,7 @@ class WallpepService : WallpaperService() {
         private var lastTiltX = 0f
         private var lastTiltY = 0f
         private var particlesArmed = false
+        private var secondsArmed = false
 
         private val fallbackColors = WallpaperColors(Color.valueOf(0xff263f34.toInt()), null, null)
         @Volatile private var cachedColors: WallpaperColors = fallbackColors
@@ -150,6 +152,20 @@ class WallpepService : WallpaperService() {
                 } else {
                     particlesArmed = false
                 }
+            }
+        }
+
+        // Seconds-bearing clock formats need one wall-clock-aligned frame per second. This loop
+        // only requests frames; rotation and settings work still belongs to the minute tick, so
+        // no DataStore read happens at 1 Hz. It never runs while the engine is hidden.
+        private val secondTick = object : Runnable {
+            override fun run() {
+                secondsArmed = false
+                if (!running || !gate.canRender) return
+                if (!ClockFormats.needsSeconds(effectiveSettings().clockFormat)) return
+                requestFrame()
+                secondsArmed = true
+                main.postDelayed(this, millisUntilNextSecond(System.currentTimeMillis()))
             }
         }
 
@@ -393,7 +409,20 @@ class WallpepService : WallpaperService() {
                 CutoutCoordinator.ensure(applicationContext, effective.backgroundName)
             }
             armParticleLoop()
+            armSecondsLoop()
             requestFrame()
+        }
+
+        /** Arms (or disarms) the per-second clock loop when the active format changes. */
+        private fun armSecondsLoop() {
+            if (!running || !gate.canRender || !ClockFormats.needsSeconds(effectiveSettings().clockFormat)) {
+                main.removeCallbacks(secondTick)
+                secondsArmed = false
+                return
+            }
+            if (secondsArmed) return
+            secondsArmed = true
+            main.postDelayed(secondTick, millisUntilNextSecond(System.currentTimeMillis()))
         }
 
         private fun armParticleLoop() {
@@ -507,6 +536,8 @@ class WallpepService : WallpaperService() {
             }
             main.removeCallbacks(particleTick)
             particlesArmed = false
+            main.removeCallbacks(secondTick)
+            secondsArmed = false
             unregisterSensor()
             // Per-engine scaled bitmap is never retained while hidden or surface-less.
             scene.release()

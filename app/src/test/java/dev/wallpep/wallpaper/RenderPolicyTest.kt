@@ -54,6 +54,23 @@ class RenderPolicyTest {
         assertEquals(1L, millisUntilNextMinute(-1))
     }
 
+    @Test fun secondDelayIsAlignedAndDoesNotDrift() {
+        assertEquals(1_000L, millisUntilNextSecond(0))
+        assertEquals(999L, millisUntilNextSecond(1))
+        assertEquals(1L, millisUntilNextSecond(999))
+        assertEquals(1_000L, millisUntilNextSecond(1_000))
+        assertEquals(1L, millisUntilNextSecond(-1))
+    }
+
+    @Test fun onlySecondsFormatsMoveTheClockTickOffTheMinuteBoundary() {
+        assertEquals(60_000L, nextClockTickDelayMillis(0, false))
+        assertEquals(59_999L, nextClockTickDelayMillis(1, false))
+        assertEquals(1_000L, nextClockTickDelayMillis(0, true))
+        assertEquals(250L, nextClockTickDelayMillis(1_750, true))
+        assertEquals(1L, nextClockTickDelayMillis(59_999, true))
+        assertEquals(60_000L, millisUntilNextMinute(60_000))
+    }
+
     @Test fun paletteNotificationsRequireMaterialChange() {
         val base = PaletteSignature(0xff202020.toInt(), null, null, 0)
         assertFalse(materiallyDifferent(base, base))

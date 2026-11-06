@@ -46,6 +46,16 @@ class StyleTest {
         assertEquals(" ", ClockFormats.format("hh_mm_ss")?.secondsSeparator)
     }
 
+    @Test fun secondsFormatsDriveThePerSecondClockTick() {
+        assertTrue(ClockFormats.needsSeconds("hh_mm_ss"))
+        assertTrue(ClockFormats.needsSeconds("hhmmss"))
+        assertTrue(ClockFormats.needsSeconds("hh:mm_ss_v"))
+        assertFalse(ClockFormats.needsSeconds(ClockFormats.DEFAULT_ID))
+        assertFalse(ClockFormats.needsSeconds(ClockFormats.SYSTEM))
+        assertFalse(ClockFormats.needsSeconds("future-format"))
+        assertFalse(ClockFormats.needsSeconds(null))
+    }
+
     @Test fun everyDateFormatIsAValidJvmPattern() {
         val date = Date(0L)
         DateFormats.all.forEach { format ->

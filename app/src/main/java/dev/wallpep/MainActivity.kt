@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import dev.wallpep.cutout.CutoutCoordinator
 import dev.wallpep.cutout.CutoutState
+import dev.wallpep.model.ClockFormats
 import dev.wallpep.model.WallpaperSettings
 import dev.wallpep.render.WallpaperScene
 import dev.wallpep.storage.BackgroundStore
@@ -34,7 +35,7 @@ import dev.wallpep.ui.dialogInput
 import dev.wallpep.ui.dp
 import dev.wallpep.ui.textField
 import dev.wallpep.wallpaper.WallpepService
-import dev.wallpep.wallpaper.millisUntilNextMinute
+import dev.wallpep.wallpaper.nextClockTickDelayMillis
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -93,7 +94,12 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
     private val previewTick = object : Runnable {
         override fun run() {
             editor.invalidatePreview()
-            main.postDelayed(this, millisUntilNextMinute(System.currentTimeMillis()))
+            // Seconds-bearing clock formats must tick every wall-clock second in the editor too,
+            // otherwise the preview (like the applied wallpaper) shows frozen seconds.
+            main.postDelayed(
+                this,
+                nextClockTickDelayMillis(System.currentTimeMillis(), ClockFormats.needsSeconds(settings.clockFormat)),
+            )
         }
     }
 
@@ -200,7 +206,10 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
         previewVisible = true
         editor.invalidatePreview()
         main.removeCallbacks(previewTick)
-        main.postDelayed(previewTick, millisUntilNextMinute(System.currentTimeMillis()))
+        main.postDelayed(
+            previewTick,
+            nextClockTickDelayMillis(System.currentTimeMillis(), ClockFormats.needsSeconds(settings.clockFormat)),
+        )
         if (initialized) refreshPreviewImage()
     }
 

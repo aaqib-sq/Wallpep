@@ -19,6 +19,16 @@ class RenderGate {
 /** Schedule from the wall clock rather than accumulating a repeating timer's drift. */
 fun millisUntilNextMinute(nowMillis: Long): Long = 60_000L - Math.floorMod(nowMillis, 60_000L)
 
+/** Clock formats that show seconds need one wall-clock-aligned redraw per second. */
+fun millisUntilNextSecond(nowMillis: Long): Long = 1_000L - Math.floorMod(nowMillis, 1_000L)
+
+/**
+ * The next clock redraw boundary: every second only when the active format renders seconds,
+ * otherwise the minute boundary Phase 1 shipped. Settings/rotation work stays on the minute tick.
+ */
+fun nextClockTickDelayMillis(nowMillis: Long, needsSeconds: Boolean): Long =
+    if (needsSeconds) millisUntilNextSecond(nowMillis) else millisUntilNextMinute(nowMillis)
+
 /** Changes smaller than this perceptual-ish RGB distance leave the cached palette alone. */
 data class PaletteSignature(val primary: Int, val secondary: Int?, val tertiary: Int?, val hints: Int)
 

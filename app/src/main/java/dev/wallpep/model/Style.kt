@@ -210,6 +210,9 @@ object ClockFormats {
 
     fun format(id: String?): ClockFormat? = all.firstOrNull { it.id == id }
 
+    /** True when the format shows seconds and therefore needs a redraw every wall-clock second. */
+    fun needsSeconds(id: String?): Boolean = format(id)?.withSeconds == true
+
     fun sanitize(value: String?): String =
         if (value == SYSTEM) SYSTEM else format(value)?.id ?: DEFAULT_ID
 }

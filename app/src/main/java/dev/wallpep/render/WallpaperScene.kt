@@ -585,10 +585,13 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
             return destination
         }
         // A synthetic, code-drawn fallback; no copyrighted or personal photo is bundled.
+        // applyColorize() caches by value, so re-read imagePaint's filter here every frame and
+        // never clear it: clearing it used to leave this built-in backdrop unfiltered on the
+        // next frame (the filter key had not changed, so applyColorize() early-returned).
+        fillPaint.colorFilter = imagePaint.colorFilter
         fillPaint.shader = LinearGradient(-80f, -80f, w + 80f, h + 80f, 0xff0b1220.toInt(), 0xff05060a.toInt(), Shader.TileMode.CLAMP)
         canvas.drawRect(-80f, -80f, w + 80f, h + 80f, fillPaint)
         fillPaint.shader = null
-        fillPaint.colorFilter = imagePaint.colorFilter
         fillPaint.color = 0x2E2563EB
         canvas.drawCircle(w * 0.82f, h * 0.78f, w * 0.58f, fillPaint)
         fillPaint.color = 0x3A2563EB
@@ -600,12 +603,11 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
             close()
         }
         canvas.drawPath(hill, fillPaint)
-        fillPaint.colorFilter = null
         canvas.restoreToCount(save)
         return null
     }
 
-    private fun clockNeedsSeconds(): Boolean = ClockFormats.format(settings.clockFormat)?.withSeconds == true
+    private fun clockNeedsSeconds(): Boolean = ClockFormats.needsSeconds(settings.clockFormat)
 
     private fun padFor(stroke: StrokeSettings, shadow: ShadowSettings, unit: Float): Float {
         val strokePx = if (stroke.enabled) (stroke.width / 10f) * unit + 2f else 0f
@@ -924,9 +926,15 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         val layoutWidth = layoutWidthFor(fill, time.text)
         val fillLayout = buildLayout(time.text, fillText, layoutWidth)
         val lineCenter = (fillLayout.getLineLeft(0) + fillLayout.getLineRight(0)) / 2f
+        val dx = centre - lineCenter
         val dy = baseline - fillLayout.getLineBaseline(0)
+        // Gradients are built in scene coordinates (the clock's text box), but the StaticLayout
+        // is drawn after translating the canvas. Offset the shader's local matrix so the fill
+        // and stroke gradients stay over their glyphs instead of clamping to one end colour.
+        alignShaderToTranslation(fill, dx, dy)
+        if (strokeEnabled) alignShaderToTranslation(stroke, dx, dy)
         val save = canvas.save()
-        canvas.translate(centre - lineCenter, dy)
+        canvas.translate(dx, dy)
         if (strokeEnabled) {
             val strokeText = TextPaint(stroke)
             val strokeLayout = buildLayout(time.text, strokeText, layoutWidthFor(stroke, time.text))
@@ -934,6 +942,12 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         }
         fillLayout.draw(canvas)
         canvas.restoreToCount(save)
+    }
+
+    /** Keeps a gradient shader pinned to scene coordinates across a canvas translation. */
+    private fun alignShaderToTranslation(paint: Paint, dx: Float, dy: Float) {
+        val shader = paint.shader ?: return
+        shader.setLocalMatrix(android.graphics.Matrix().apply { setTranslate(-dx, -dy) })
     }
 
     private fun layoutWidthFor(paint: Paint, text: String): Int =
