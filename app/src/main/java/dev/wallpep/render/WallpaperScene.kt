@@ -475,7 +475,9 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
             compositePaint.alpha = (255f * transition.alpha.coerceIn(0f, 1f)).toInt()
             val blurPx = transition.blur * prepared.contentH
             if (blurPx > 0.6f) {
-                compositePaint.renderEffect = RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP)
+                // Paint has no renderEffect getter, so the synthetic Kotlin property does not
+                // exist; call the API 31+ setter directly (minSdk is 33).
+                compositePaint.setRenderEffect(RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP))
                 blurSet = true
             }
         }
@@ -484,7 +486,7 @@ class WallpaperScene(context: Context, private val miniature: Boolean = false) :
         } else {
             canvas.drawBitmap(layer.bitmap, 0f, 0f, compositePaint)
         }
-        if (blurSet) compositePaint.renderEffect = null
+        if (blurSet) compositePaint.setRenderEffect(null)
         if (transition != null) compositePaint.alpha = 255
         canvas.restoreToCount(save)
     }
