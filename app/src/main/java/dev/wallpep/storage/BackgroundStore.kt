@@ -65,6 +65,22 @@ class BackgroundStore(context: Context) {
         }
     }
 
+    /** Copy bundled art to the same private storage used by imported photographs. */
+    suspend fun importPreset(asset: String): String = withContext(Dispatchers.IO) {
+        require(dev.wallpep.model.BuiltInPresets.all.any { it.asset == asset })
+        val name = "background-${UUID.randomUUID()}.img"
+        val temp = File(directory, ".$name.tmp")
+        val destination = File(directory, name)
+        try {
+            app.assets.open(asset).use { input -> temp.outputStream().use { input.copyTo(it) } }
+            currentCoroutineContext().ensureActive()
+            if (!temp.renameTo(destination)) throw IOException("Could not store preset")
+            name
+        } finally {
+            temp.delete()
+        }
+    }
+
     /** Caller runs these off the main thread. Decoded pixels are capped per engine. */
     fun decode(name: String?, maxDimension: Int): Bitmap? = decodeSafely(imageFile(name), maxDimension)
     fun decodeCutout(name: String?, maxDimension: Int): Bitmap? = decodeSafely(cutoutFile(name), maxDimension)
