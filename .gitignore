@@ -14,3 +14,6 @@ captures/
 # Local Python bytecode from the font tooling
 __pycache__/
 *.pyc
+
+# Claude Code local settings (may contain secrets - never commit)
+**/.claude/settings.local.json
