@@ -23,6 +23,8 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
 
     interface Listener {
         fun onCreateDesign()
+        fun onCreateFromPhoto()
+        fun onOpenPreset(index: Int)
         fun onOpenDesign(id: String)
         fun onToggleFavorite(id: String)
         fun onDesignOptions(design: SavedDesign)
@@ -69,7 +71,6 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
             insets
         }
         column.addView(buildHeader())
-        column.addView(buildSearch())
 
         val strip = HorizontalScrollView(activity).apply {
             isHorizontalScrollBarEnabled = false
@@ -81,12 +82,18 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
             applyFilter()
         }
         strip.addView(categoryRow.root)
-        column.addView(strip)
 
         val page = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(activity.dp(18), 0, activity.dp(18), activity.dp(24))
         }
+        page.addView(buildPresets())
+        page.addView(activity.actionButton("Apni photo se banao", primary = true) {
+            listener.onCreateFromPhoto()
+        }, activity.full(top = 18, bottom = 24))
+        page.addView(activity.uiText("My Collection", 21f, Pulse.TEXT, WallpepType.display(activity)))
+        page.addView(buildSearch())
+        page.addView(strip)
         grid = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         page.addView(grid)
         page.addView(buildEmptyState())
@@ -101,6 +108,46 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
         val container = FrameLayout(activity)
         container.addView(column, FrameLayout.LayoutParams(-1, -1))
         return container
+    }
+
+    private fun buildPresets(): View {
+        val section = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        section.addView(activity.uiText("Presets", 23f, Pulse.TEXT, WallpepType.display(activity)))
+        section.addView(activity.uiText("Choose a design, then tap Apply", 13f, Pulse.MUTED), activity.full(top = 5, bottom = 12))
+        val strip = HorizontalScrollView(activity).apply {
+            isHorizontalScrollBarEnabled = false
+            clipToPadding = false
+        }
+        val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+        dev.wallpep.model.BuiltInPresets.all.forEachIndexed { index, preset ->
+            val card = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Open ${preset.name} preset"
+                setOnClickListener { listener.onOpenPreset(index) }
+            }
+            val frame = FrameLayout(activity).apply {
+                background = activity.shape(Pulse.SURFACE, 18f, Pulse.LINE)
+                clipToOutline = true
+            }
+            val scene = dev.wallpep.render.WallpaperScene(activity, miniature = true).apply {
+                settings = preset.settings
+                animationsEnabled = false
+                val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                val bitmap = activity.assets.open(preset.asset).use { android.graphics.BitmapFactory.decodeStream(it, null, options) }
+                setImages(bitmap, null)
+            }
+            frame.addView(scene, FrameLayout.LayoutParams(-1, -1))
+            card.addView(frame, LinearLayout.LayoutParams(-1, activity.dp(250)))
+            card.addView(activity.uiText(preset.name, 14f, Pulse.TEXT, WallpepType.bodyMedium(activity)), activity.full(top = 8))
+            row.addView(card, LinearLayout.LayoutParams(activity.dp(158), -2).apply {
+                if (index > 0) marginStart = activity.dp(12)
+            })
+        }
+        strip.addView(row)
+        section.addView(strip)
+        return section
     }
 
     private fun buildHeader(): View {
@@ -171,8 +218,8 @@ class HomeScreen(private val activity: ComponentActivity, private val listener: 
             setLineSpacing(activity.dp(3).toFloat(), 1f)
         }
         column.addView(emptyBody, activity.full(top = 8))
-        val action = activity.actionButton("Create your first wallpaper", primary = true) {
-            listener.onCreateDesign()
+        val action = activity.actionButton("Apni photo se banao", primary = true) {
+            listener.onCreateFromPhoto()
         }
         emptyAction = action
         column.addView(action, LinearLayout.LayoutParams(-1, activity.dp(48)).apply {

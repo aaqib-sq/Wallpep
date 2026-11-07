@@ -132,9 +132,9 @@ internal fun Context.card(radiusDp: Float = 20f, fill: Int = Pulse.SURFACE, padd
  * a Space Grotesk label at the top, matching the editor's sub-section names.
  */
 internal fun Context.sectionCard(title: String, subtitle: String? = null, fill: Int = Pulse.SURFACE): LinearLayout {
-    val card = card(fill = fill)
+    val card = card(fill = fill, padding = 20)
     card.addView(
-        uiText(title.uppercase(), 11f, Pulse.MUTED, WallpepType.display(this), 0.18f),
+        uiText(title.uppercase(), 15f, Pulse.TEXT, WallpepType.display(this), 0.08f),
         LinearLayout.LayoutParams(-1, -2),
     )
     if (subtitle != null) {
@@ -159,6 +159,8 @@ internal fun Context.actionButton(label: String, primary: Boolean, onClick: () -
 
 internal fun Context.accentSeekBar(maximum: Int, description: String): SeekBar = SeekBar(this).apply {
     max = maximum
+    minHeight = dp(48)
+    thumb = shape(Pulse.ACCENT, 100f).apply { setSize(dp(24), dp(24)) }
     contentDescription = description
     progressTintList = ColorStateList.valueOf(Pulse.ACCENT)
     thumbTintList = ColorStateList.valueOf(Pulse.ACCENT_LIGHT)
@@ -169,10 +171,14 @@ internal fun Context.accentSeekBar(maximum: Int, description: String): SeekBar =
 @Suppress("UseSwitchCompatOrMaterialCode")
 internal fun Context.accentSwitch(label: String): Switch = Switch(this).apply {
     text = label
-    textSize = 13f
+    textSize = 15f
     setTextColor(Pulse.TEXT)
     typeface = WallpepType.body(context)
-    minHeight = dp(44)
+    minHeight = dp(56)
+    switchMinWidth = dp(58)
+    switchPadding = dp(12)
+    thumbDrawable = shape(Pulse.ON_ACCENT, 100f).apply { setSize(dp(26), dp(26)) }
+    trackDrawable = shape(Pulse.LINE_STRONG, 100f).apply { setSize(dp(58), dp(32)) }
     setPadding(0, dp(2), 0, dp(2))
     thumbTintList = ColorStateList(
         arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
@@ -322,8 +328,8 @@ internal fun Context.sliderRow(
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }
-    val value = uiText(format(min), 12f, Pulse.TEXT, WallpepType.bodyMedium(this))
-    head.addView(uiText(label, 13f, Pulse.TEXT), LinearLayout.LayoutParams(0, -2, 1f))
+    val value = uiText(format(min), 14f, Pulse.TEXT, WallpepType.bodyMedium(this))
+    head.addView(uiText(label, 15f, Pulse.TEXT), LinearLayout.LayoutParams(0, -2, 1f))
     head.addView(value)
     column.addView(head, LinearLayout.LayoutParams(-1, -2))
     val bar = accentSeekBar(max - min, label)
@@ -370,9 +376,10 @@ internal fun Context.chipRow(options: List<String>, columns: Int, onSelect: (Int
             row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             column.addView(row, full(top = if (index == 0) 8 else 6))
         }
-        val chip = uiText(label, 11.5f, Pulse.TEXT, WallpepType.bodyMedium(this)).apply {
+        val chip = uiText(label, 13f, Pulse.TEXT, WallpepType.bodyMedium(this)).apply {
             gravity = Gravity.CENTER
-            setPadding(dp(6), dp(9), dp(6), dp(9))
+            setPadding(dp(8), dp(13), dp(8), dp(13))
+            minHeight = dp(48)
             background = shape(Pulse.FIELD, 11f, Pulse.LINE)
             isClickable = true
             isFocusable = true

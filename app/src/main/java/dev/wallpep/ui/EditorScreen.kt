@@ -1093,7 +1093,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     private fun section(title: String, subtitle: String? = null): LinearLayout {
         val card = activity.sectionCard(title, subtitle)
         // The page adds the card itself; margins come from the same helper used everywhere.
-        card.layoutParams = activity.full(top = 12)
+        card.layoutParams = activity.full(top = 18)
         return card
     }
 
@@ -1199,7 +1199,7 @@ class EditorScreen(private val activity: ComponentActivity, private val listener
     }
 
     private fun addRow(parent: LinearLayout, view: View) {
-        parent.addView(view, activity.full(top = 8))
+        parent.addView(view, activity.full(top = 14))
     }
 
     private fun spacing(hundredths: Int): String = String.format(Locale.ROOT, "%.2f em", hundredths / 100f)

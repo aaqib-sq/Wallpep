@@ -267,6 +267,41 @@ class MainActivity : ComponentActivity(), HomeScreen.Listener, SettingsScreen.Li
         refreshPreviewImage()
     }
 
+    override fun onCreateFromPhoto() {
+        if (!ready()) return
+        onCreateDesign()
+        pickPhoto()
+    }
+
+    override fun onOpenPreset(index: Int) {
+        if (!ready()) return
+        val preset = dev.wallpep.model.BuiltInPresets.all.getOrNull(index) ?: return
+        busy = true
+        persistJob?.cancel()
+        lifecycleScope.launch {
+            try {
+                if (dirty && !writeDesign()) return@launch
+                val name = backgrounds.importPreset(preset.asset)
+                currentDesignId = null
+                settings = preset.settings.copy(backgroundName = name)
+                currentName = preset.name
+                favorited = false
+                inRotation = false
+                dirty = false
+                shell.openEditor()
+                renderAll()
+                refreshPreviewImage()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                toast("Could not open preset. Please try again.")
+            } finally {
+                busy = false
+                renderAll()
+            }
+        }
+    }
+
     override fun onOpenDesign(id: String) {
         if (!ready()) return
         val design = designs.firstOrNull { it.id == id } ?: return
